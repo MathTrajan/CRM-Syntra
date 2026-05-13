@@ -58,19 +58,9 @@ public class LeadService {
     @Transactional(readOnly = true)
     public Page<Lead> listar(LeadFiltroDTO filtro) {
         Pageable pageable = PageRequest.of(filtro.getPage(), filtro.getSize());
-
-        LocalDateTime dataInicio = filtro.getDataInicio() != null
-                ? filtro.getDataInicio().atStartOfDay() : null;
-        LocalDateTime dataFim = filtro.getDataFim() != null
-                ? filtro.getDataFim().atTime(23, 59, 59) : null;
-
-        boolean semVendedor = "sem_vendedor".equals(filtro.getVendedorId());
-        String vendedorId = semVendedor ? null : filtro.getVendedorId();
-
-        String busca = (filtro.getBusca() != null && !filtro.getBusca().isBlank())
-                ? filtro.getBusca().trim() : null;
-
-        return leadRepo.buscar(filtro.getStatus(), semVendedor, vendedorId, busca, dataInicio, dataFim, pageable);
+        Filtros f = montarFiltros(filtro);
+        return leadRepo.buscar(filtro.getStatus(), f.semVendedor, f.vendedorId,
+                f.busca, f.buscaDigits, f.dataInicio, f.dataFim, pageable);
     }
 
     @Transactional(readOnly = true)
@@ -138,26 +128,72 @@ public class LeadService {
     @Transactional(readOnly = true)
     public List<Lead> exportar(LeadFiltroDTO filtro) {
         Pageable pageable = Pageable.unpaged();
+        Filtros f = montarFiltros(filtro);
+        return leadRepo.buscar(filtro.getStatus(), f.semVendedor, f.vendedorId,
+                        f.busca, f.buscaDigits, f.dataInicio, f.dataFim, pageable)
+                .getContent();
+    }
 
+    /** Normaliza os parametros opcionais do filtro em uma forma pronta para o repositorio. */
+    private Filtros montarFiltros(LeadFiltroDTO filtro) {
         LocalDateTime dataInicio = filtro.getDataInicio() != null
                 ? filtro.getDataInicio().atStartOfDay() : null;
         LocalDateTime dataFim = filtro.getDataFim() != null
                 ? filtro.getDataFim().atTime(23, 59, 59) : null;
 
-        boolean semVendedor = "sem_vendedor".equals(filtro.getVendedorId());
-        String vendedorId = semVendedor ? null : filtro.getVendedorId();
+        // Os formularios HTML enviam strings vazias para campos nao preenchidos
+        // ("?vendedorId="). Tratamos vazio == null para que a query usa as
+        // clausulas IS NULL ao inves de comparar com string vazia (o que
+        // sempre falha).
+        String vendedorIdRaw = blankToNull(filtro.getVendedorId());
+        boolean semVendedor = "sem_vendedor".equals(vendedorIdRaw);
+        String vendedorId = semVendedor ? null : vendedorIdRaw;
 
-        String busca = (filtro.getBusca() != null && !filtro.getBusca().isBlank())
-                ? filtro.getBusca().trim() : null;
+        String busca = blankToNull(filtro.getBusca());
+        if (busca != null) busca = busca.trim();
 
-        return leadRepo.buscar(filtro.getStatus(), semVendedor, vendedorId, busca, dataInicio, dataFim, pageable)
-                .getContent();
+        // Se a busca tem ao menos 3 digitos, gera versao somente-digitos para casar
+        // com telefones formatados como "(11) 99988-7766". Usamos isso como
+        // segundo termo de OR para nao restringir a busca textual.
+        String buscaDigits = null;
+        if (busca != null) {
+            String soDigitos = busca.replaceAll("\\D", "");
+            if (soDigitos.length() >= 3) {
+                buscaDigits = soDigitos;
+            }
+        }
+
+        return new Filtros(semVendedor, vendedorId, busca, buscaDigits, dataInicio, dataFim);
     }
+
+    private static String blankToNull(String value) {
+        return (value == null || value.isBlank()) ? null : value;
+    }
+
+    private record Filtros(boolean semVendedor,
+                           String vendedorId,
+                           String busca,
+                           String buscaDigits,
+                           LocalDateTime dataInicio,
+                           LocalDateTime dataFim) {}
 
     @Transactional
     public List<Lead> atribuirEmMassa(List<String> leadIds, String vendedorId, String autorEmail) {
         if (leadIds == null || leadIds.isEmpty()) {
             throw new IllegalArgumentException("Nenhum lead selecionado para atribuicao.");
+        }
+
+        // Deduplica e normaliza: o front pode enviar IDs repetidos se o usuario
+        // clicar varias vezes, e queremos comparar contra os encontrados sem
+        // estourar a checagem.
+        List<String> idsUnicos = leadIds.stream()
+                .filter(id -> id != null && !id.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
+
+        if (idsUnicos.isEmpty()) {
+            throw new IllegalArgumentException("Nenhum lead valido selecionado para atribuicao.");
         }
 
         Usuario autor = buscarAutorOpcional(autorEmail);
@@ -168,9 +204,9 @@ public class LeadService {
                     .orElseThrow(() -> new IllegalArgumentException("Vendedor nao encontrado."));
         }
 
-        List<Lead> leads = leadRepo.findAllById(leadIds);
-        if (leads.size() != leadIds.size()) {
-            throw new IllegalArgumentException("Um ou mais leads selecionados nao foram encontrados.");
+        List<Lead> leads = leadRepo.findAllById(idsUnicos);
+        if (leads.isEmpty()) {
+            throw new IllegalArgumentException("Nenhum lead encontrado para os IDs informados.");
         }
 
         LocalDateTime eventoEm = LocalDateTime.now();

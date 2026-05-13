@@ -8,9 +8,13 @@ import com.syntra.dto.divia.DiviaLeadDTO;
 import com.syntra.dto.divia.DiviaLeadResponseDTO;
 import com.syntra.model.Lead;
 import com.syntra.repository.LeadRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriBuilder;
@@ -25,20 +29,27 @@ import java.util.Map;
 @Service
 public class DiviaLeadIntegrationService {
 
+    private static final Logger log = LoggerFactory.getLogger(DiviaLeadIntegrationService.class);
     private static final String ORIGEM_EXTERNA_DIVIA = "DIVIA";
 
     private final LeadRepository leadRepository;
     private final ObjectMapper objectMapper;
     private final RestClient restClient;
     private final String apiToken;
+    /** Auto-injecao da propria classe para que chamadas a importarOuAtualizar passem
+     *  pelo proxy Spring e respeitem o @Transactional(REQUIRES_NEW) - chamada direta
+     *  em metodo do mesmo bean bypassa o proxy e cairia na transacao do chamador. */
+    private final org.springframework.context.ApplicationContext appContext;
 
     public DiviaLeadIntegrationService(LeadRepository leadRepository,
                                        ObjectMapper objectMapper,
                                        RestClient.Builder restClientBuilder,
+                                       org.springframework.context.ApplicationContext appContext,
                                        @Value("${syntra.integrations.divia.base-url}") String baseUrl,
                                        @Value("${syntra.integrations.divia.token:}") String apiToken) {
         this.leadRepository = leadRepository;
         this.objectMapper = objectMapper;
+        this.appContext = appContext;
         this.restClient = restClientBuilder
                 .baseUrl(baseUrl)
                 .defaultHeader("Accept", MediaType.APPLICATION_JSON_VALUE)
@@ -46,26 +57,55 @@ public class DiviaLeadIntegrationService {
         this.apiToken = apiToken;
     }
 
-    @Transactional
+    /**
+     * Sincroniza com a fonte externa de leads paginando ate o fim.
+     *
+     * IMPORTANTE: este metodo NAO e' @Transactional - cada lead e' salvo em sua
+     * propria transacao via {@link #importarOuAtualizar} (REQUIRES_NEW). Assim,
+     * se a API cair na pagina 5 de 10, as paginas 1-4 ja estarao persistidas e
+     * nao sofrem rollback. O usuario ve qual foi o ultimo ponto seguro pelo
+     * contador no DiviaSyncResultDTO retornado e pelo log.
+     */
     public DiviaSyncResultDTO sincronizar(LeadFiltroDTO filtro) {
         validarConfiguracao();
+
+        // O bean proxy permite que cada chamada respeite o @Transactional propio.
+        DiviaLeadIntegrationService self = appContext.getBean(DiviaLeadIntegrationService.class);
 
         DiviaSyncResultDTO resultado = new DiviaSyncResultDTO();
         int pagina = 1;
         int ultimaPagina = 1;
 
         do {
-            DiviaLeadResponseDTO resposta = buscarPagina(filtro, pagina);
+            DiviaLeadResponseDTO resposta;
+            try {
+                resposta = buscarPagina(filtro, pagina);
+            } catch (RuntimeException apiFalha) {
+                // Falha de API: preserva o que ja foi salvo nas paginas anteriores
+                // e propaga a exception com o estado parcial nos contadores.
+                log.warn("Sync Divia interrompido na pagina {}: {}. Persistidos ate aqui: {} novo(s), {} atualizado(s).",
+                        pagina, apiFalha.getMessage(),
+                        resultado.getImportados(), resultado.getAtualizados());
+                throw apiFalha;
+            }
+
             List<DiviaLeadDTO> leads = resposta.getData() != null ? resposta.getData() : List.of();
 
             for (DiviaLeadDTO dto : leads) {
-                boolean novo = importarOuAtualizar(dto);
-                if (novo) {
-                    resultado.setImportados(resultado.getImportados() + 1);
-                } else {
-                    resultado.setAtualizados(resultado.getAtualizados() + 1);
+                try {
+                    boolean novo = self.importarOuAtualizar(dto);
+                    if (novo) {
+                        resultado.setImportados(resultado.getImportados() + 1);
+                    } else {
+                        resultado.setAtualizados(resultado.getAtualizados() + 1);
+                    }
+                    resultado.setRecebidos(resultado.getRecebidos() + 1);
+                } catch (RuntimeException leadFalha) {
+                    // Um lead com defeito (campo invalido, etc.) nao deve abortar
+                    // o restante do batch. Loga e segue para o proximo.
+                    log.error("Falha ao persistir lead {} da Divia: {}",
+                            dto.getId(), leadFalha.getMessage());
                 }
-                resultado.setRecebidos(resultado.getRecebidos() + 1);
             }
 
             if (resposta.getMeta() != null && resposta.getMeta().getLastPage() > 0) {
@@ -108,7 +148,16 @@ public class DiviaLeadIntegrationService {
         return uriBuilder.build();
     }
 
-    private boolean importarOuAtualizar(DiviaLeadDTO dto) {
+    /**
+     * Salva um unico lead em sua propria transacao. REQUIRES_NEW garante que
+     * a operacao commit-e independentemente do chamador - se a sincronizacao
+     * abortar depois, este lead ja esta gravado.
+     *
+     * E' public por necessidade do proxy Spring (chamadas internas a metodos
+     * private nao passam pelo proxy e perdem o @Transactional).
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean importarOuAtualizar(DiviaLeadDTO dto) {
         if (dto.getId() == null || dto.getId().isBlank()) {
             throw new IllegalStateException("A API da Divia retornou um lead sem identificador.");
         }
@@ -208,6 +257,26 @@ public class DiviaLeadIntegrationService {
     private void validarConfiguracao() {
         if (apiToken == null || apiToken.isBlank()) {
             throw new IllegalStateException("Configure a variavel DIVIA_API_TOKEN para sincronizar os leads da Divia.");
+        }
+    }
+
+    /**
+     * Sincronizacao automatica periodica. Roda a cada 30 minutos. Garante que novos
+     * leads criados na fonte externa entre os cliques manuais nunca sejam perdidos.
+     * Skippa silenciosamente quando a integracao nao esta configurada (dev local).
+     */
+    @Scheduled(cron = "0 */30 * * * *")
+    public void sincronizarAutomatico() {
+        if (apiToken == null || apiToken.isBlank()) {
+            log.debug("Sync automatico ignorado: DIVIA_API_TOKEN nao configurado.");
+            return;
+        }
+        try {
+            DiviaSyncResultDTO resultado = sincronizar(new LeadFiltroDTO());
+            log.info("Sync automatico Divia OK: {} novo(s), {} atualizado(s), {} recebido(s).",
+                    resultado.getImportados(), resultado.getAtualizados(), resultado.getRecebidos());
+        } catch (RuntimeException ex) {
+            log.warn("Sync automatico Divia falhou: {}", ex.getMessage());
         }
     }
 }
