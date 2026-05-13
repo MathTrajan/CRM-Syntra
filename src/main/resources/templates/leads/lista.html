@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Leads - Syntra</title>
+    <link rel="icon" type="image/svg+xml" th:href="@{/images/favicon.svg}"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com"/>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+    <link rel="stylesheet" th:href="@{/css/app.css}"/>
+</head>
+<body>
+
+<div th:replace="~{fragments/sidebar :: sidebar(paginaAtiva='leads')}"></div>
+
+<div class="main-content">
+
+    <div th:replace="~{fragments/navbar :: navbar(titulo='Leads')}"></div>
+
+    <div class="page-body">
+        <input type="hidden" id="csrfToken" th:value="${_csrf.token}"/>
+
+        <div th:if="${sucesso}" class="alert alert-success" th:text="${sucesso}"></div>
+        <div th:if="${erro}" class="alert alert-error" th:text="${erro}"></div>
+
+        <div class="page-header">
+            <div>
+                <h1 class="page-title">Pipeline de Leads</h1>
+                <p class="page-subtitle">
+                    <span th:text="${totalElementos}">0</span> lead(s) encontrado(s)
+                </p>
+            </div>
+            <form th:action="@{/leads/sincronizar}" method="post">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                <input type="hidden" name="busca" th:value="${filtro.busca}"/>
+                <input type="hidden" name="status" th:value="${filtro.status}"/>
+                <input type="hidden" name="vendedorId" th:value="${filtro.vendedorId}"/>
+                <input type="hidden" name="dataInicio" th:value="${filtro.dataInicio}"/>
+                <input type="hidden" name="dataFim" th:value="${filtro.dataFim}"/>
+                <input type="hidden" name="page" th:value="${filtro.page}"/>
+                <input type="hidden" name="size" th:value="${filtro.size}"/>
+                <button type="submit" class="btn btn-secondary btn-sm">
+                    Sincronizar Divia
+                </button>
+            </form>
+        </div>
+
+        <div class="filter-bar">
+            <form action="/leads" method="get"
+                  style="display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; width:100%">
+
+                <div class="filter-group">
+                    <label class="filter-label">Buscar</label>
+                    <input type="text" name="busca" class="form-input"
+                           placeholder="Nome, email ou telefone..."
+                           th:value="${filtro.busca}"/>
+                </div>
+
+                <div class="filter-group">
+                    <label class="filter-label">Status</label>
+                    <select name="status" class="form-input">
+                        <option value="">Todos</option>
+                        <option th:each="s : ${statusList}"
+                                th:value="${s.name()}"
+                                th:text="${s.label}"
+                                th:selected="${filtro.status == s}">
+                        </option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label class="filter-label">Vendedor</label>
+                    <select name="vendedorId" class="form-input">
+                        <option value="">Todos</option>
+                        <option value="sem_vendedor"
+                                th:selected="${filtro.vendedorId == 'sem_vendedor'}">
+                            Sem vendedor
+                        </option>
+                        <option th:each="v : ${vendedores}"
+                                th:value="${v.id}"
+                                th:text="${v.nome}"
+                                th:selected="${filtro.vendedorId == v.id}">
+                        </option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label class="filter-label">De</label>
+                    <input type="date" name="dataInicio" class="form-input"
+                           th:value="${filtro.dataInicio}"/>
+                </div>
+
+                <div class="filter-group">
+                    <label class="filter-label">Ate</label>
+                    <input type="date" name="dataFim" class="form-input"
+                           th:value="${filtro.dataFim}"/>
+                </div>
+
+                <div class="filter-actions">
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <circle cx="11" cy="11" r="8"/>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        </svg>
+                        Filtrar
+                    </button>
+                    <a th:href="@{/leads}" class="btn btn-ghost btn-sm">Limpar</a>
+                </div>
+            </form>
+        </div>
+
+        <div class="bulk-actions mb-4">
+            <div class="bulk-actions-row">
+                <div>
+                    <label class="filter-label">Vendedor para atribuir</label>
+                    <select id="bulkVendedorSelect" class="form-input">
+                        <option value="">Selecione um vendedor</option>
+                        <option th:each="v : ${vendedores}"
+                                th:value="${v.id}"
+                                th:text="${v.nome}"></option>
+                    </select>
+                </div>
+                <div class="bulk-actions-buttons">
+                    <button type="button" class="btn btn-primary btn-sm" onclick="atribuirSelecionados()">
+                        Atribuir selecionados
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="exportarLeads()">
+                        Exportar JSON
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card table-card">
+            <div class="table-wrap">
+                <table class="table">
+                    <thead>
+                    <tr>
+                        <th><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)"/></th>
+                        <th>Lead</th>
+                        <th>Contato</th>
+                        <th>Origem</th>
+                        <th>Status</th>
+                        <th>Vendedor</th>
+                        <th>Recebido</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:if="${#lists.isEmpty(leads)}">
+                        <td colspan="8" class="table-empty">
+                            Nenhum lead encontrado para os filtros aplicados.
+                        </td>
+                    </tr>
+
+                    <tr th:each="lead : ${leads}"
+                        th:class="${!lead.lido} ? 'row-unread' : ''"
+                        th:id="'row-' + ${lead.id}"
+                        class="fade-in">
+
+                        <td>
+                            <input type="checkbox" class="select-lead" th:value="${lead.id}" onchange="updateBulkActions()"/>
+                        </td>
+                        <td>
+                            <div class="lead-nome-cell">
+                                <span class="unread-dot" th:if="${!lead.lido}" title="Nao lido"></span>
+                                <div class="lead-cell-stack">
+                                    <a th:href="@{/leads/{id}(id=${lead.id})}"
+                                       th:text="${lead.nome}"
+                                       class="lead-link">-</a>
+                                    <div class="lead-flags" th:if="${lead.followUpAtrasado or lead.parado}">
+                                        <span class="alert-chip alert-chip-warning" th:if="${lead.followUpAtrasado}">Follow-up atrasado</span>
+                                        <span class="alert-chip alert-chip-danger" th:if="${lead.parado and !lead.followUpAtrasado}">Parado</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+
+                        <td>
+                            <div class="lead-contact">
+                                <span th:if="${lead.telefone}" th:text="${lead.telefone}" class="lc-phone"></span>
+                                <span th:if="${lead.email}" th:text="${lead.email}" class="lc-email"></span>
+                            </div>
+                        </td>
+
+                        <td>
+                            <span class="origin-chip" th:if="${lead.origem}" th:text="${lead.origem}"></span>
+                            <span class="text-muted" th:unless="${lead.origem}">-</span>
+                        </td>
+
+                        <td>
+                            <span th:class="'badge badge-' + ${lead.status.name().toLowerCase().replace('_','-')}"
+                                  th:text="${lead.status.label}">-</span>
+                        </td>
+
+                        <td>
+                            <span th:if="${lead.vendedor != null}" th:text="${lead.vendedor.nome}" class="text-sm text-sec"></span>
+                            <span th:if="${lead.vendedor == null}" class="text-muted">-</span>
+                        </td>
+
+                        <td class="text-sm text-sec"
+                            th:text="${#temporals.format(lead.criadoEm, 'dd/MM/yy HH:mm')}">-</td>
+
+                        <td>
+                            <a th:href="@{/leads/{id}(id=${lead.id})}" class="btn btn-ghost btn-sm">Abrir</a>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="pagination" th:if="${totalPaginas > 1}">
+                <a th:if="${paginaAtual > 0}"
+                   th:href="@{/leads(busca=${filtro.busca},status=${filtro.status},vendedorId=${filtro.vendedorId},dataInicio=${filtro.dataInicio},dataFim=${filtro.dataFim},page=${paginaAtual - 1})}"
+                   class="btn btn-ghost btn-sm">
+                    Anterior
+                </a>
+                <span class="pagination-info">
+                    Pagina <strong th:text="${paginaAtual + 1}">1</strong>
+                    de <strong th:text="${totalPaginas}">1</strong>
+                </span>
+                <a th:if="${paginaAtual < totalPaginas - 1}"
+                   th:href="@{/leads(busca=${filtro.busca},status=${filtro.status},vendedorId=${filtro.vendedorId},dataInicio=${filtro.dataInicio},dataFim=${filtro.dataFim},page=${paginaAtual + 1})}"
+                   class="btn btn-ghost btn-sm">
+                    Proxima
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script th:src="@{/js/app.js}"></script>
+<script th:src="@{/js/leads.js}"></script>
+</body>
+</html>

@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Usuários — Syntra</title>
+    <link rel="icon" type="image/svg+xml" th:href="@{/images/favicon.svg}"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com"/>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+    <link rel="stylesheet" th:href="@{/css/app.css}"/>
+</head>
+<body>
+
+<div th:replace="~{fragments/sidebar :: sidebar(paginaAtiva='usuarios')}"></div>
+
+<div class="main-content">
+
+    <div th:replace="~{fragments/navbar :: navbar(titulo='Usuários')}"></div>
+
+    <div class="page-body">
+
+        <div class="page-header">
+            <div>
+                <h1 class="page-title">Usuários</h1>
+                <p class="page-subtitle">
+                    <span th:text="${totalUsuarios}">0</span> usuário(s) cadastrado(s)
+                    <span th:if="${totalPaginas > 1}">• Página <strong th:text="${paginaAtual + 1}">1</strong> de <strong th:text="${totalPaginas}">1</strong></span>
+                </p>
+            </div>
+            <button class="btn btn-primary" onclick="abrirModal()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Novo Usuário
+            </button>
+        </div>
+
+        <div th:if="${sucesso}" class="alert alert-success">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            <span th:text="${sucesso}"></span>
+        </div>
+        <div th:if="${erro}" class="alert alert-error">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="15" y1="9" x2="9" y2="15"/>
+                <line x1="9" y1="9" x2="15" y2="15"/>
+            </svg>
+            <span th:text="${erro}"></span>
+        </div>
+
+        <div class="card table-card">
+            <div class="table-wrap">
+                <table class="table">
+                    <thead>
+                    <tr>
+                        <th>Usuário</th>
+                        <th>Email</th>
+                        <th>Perfil</th>
+                        <th>Status</th>
+                        <th>Criado em</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:if="${#lists.isEmpty(usuarios)}">
+                        <td colspan="6" class="table-empty">Nenhum usuário cadastrado.</td>
+                    </tr>
+
+                    <tr th:each="u : ${usuarios}" class="fade-in">
+                        <td>
+                            <div class="user-cell">
+                                <div class="user-avatar-sm"
+                                     th:text="${#strings.toUpperCase(#strings.substring(u.nome, 0, 1))}">A</div>
+                                <span class="user-cell-nome" th:text="${u.nome}"></span>
+                            </div>
+                        </td>
+
+                        <td class="text-sm text-sec" th:text="${u.email}"></td>
+
+                        <td>
+                            <span th:if="${u.perfil.name() == 'ADMIN'}" class="badge badge-perfil-admin">Admin</span>
+                            <span th:unless="${u.perfil.name() == 'ADMIN'}" class="badge badge-perfil-vendedor">Vendedor</span>
+                        </td>
+
+                        <td>
+                            <span th:if="${u.ativo}" class="badge badge-ativo">Ativo</span>
+                            <span th:unless="${u.ativo}" class="badge badge-inativo">Inativo</span>
+                        </td>
+
+                        <td class="text-sm text-sec" th:text="${#temporals.format(u.criadoEm, 'dd/MM/yyyy')}"></td>
+
+                        <td>
+                            <div class="user-actions">
+                                <button type="button" class="btn btn-ghost btn-sm"
+                                        th:attr="data-id=${u.id},data-nome=${u.nome}"
+                                        onclick="abrirResetSenhaModal(this.dataset.id, this.dataset.nome)">
+                                    Resetar senha
+                                </button>
+                                <form th:action="@{/admin/usuarios/{id}/toggle(id=${u.id})}" method="post" style="display:inline">
+                                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                                    <button type="submit" class="btn btn-ghost btn-sm"
+                                            th:text="${u.ativo} ? 'Desativar' : 'Ativar'"></button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="pagination" th:if="${totalPaginas > 1}">
+                <a th:if="${paginaAtual > 0}"
+                   th:href="@{/admin/usuarios(page=${paginaAtual - 1})}"
+                   class="btn btn-ghost btn-sm">← Anterior</a>
+                <span class="pagination-info">
+                    Página <strong th:text="${paginaAtual + 1}">1</strong>
+                    de <strong th:text="${totalPaginas}">1</strong>
+                </span>
+                <a th:if="${paginaAtual < totalPaginas - 1}"
+                   th:href="@{/admin/usuarios(page=${paginaAtual + 1})}"
+                   class="btn btn-ghost btn-sm">Próxima →</a>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay" onclick="fecharModal()">
+    <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h2 class="modal-title">Novo Usuário</h2>
+            <button class="icon-btn" onclick="fecharModal()" title="Fechar">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+
+        <form th:action="@{/admin/usuarios}" th:object="${criarUsuarioForm}" method="post">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Nome completo</label>
+                    <input type="text" th:field="*{nome}" class="form-input" placeholder="Ex: João Silva" autocomplete="off"/>
+                    <p th:if="${#fields.hasErrors('nome')}" th:errors="*{nome}" class="form-error"></p>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">E-mail</label>
+                    <input type="email" th:field="*{email}" class="form-input" placeholder="email@exemplo.com" autocomplete="off"/>
+                    <p th:if="${#fields.hasErrors('email')}" th:errors="*{email}" class="form-error"></p>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Senha</label>
+                        <input type="password" th:field="*{senha}" class="form-input" placeholder="Mínimo 6 caracteres"/>
+                        <p th:if="${#fields.hasErrors('senha')}" th:errors="*{senha}" class="form-error"></p>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Perfil</label>
+                        <select th:field="*{perfil}" class="form-input">
+                            <option value="">Selecione</option>
+                            <option th:each="perfil : ${perfis}"
+                                    th:value="${perfil.name()}"
+                                    th:text="${perfil.name() == 'ADMIN' ? 'Administrador' : 'Vendedor'}"></option>
+                        </select>
+                        <p th:if="${#fields.hasErrors('perfil')}" th:errors="*{perfil}" class="form-error"></p>
+                    </div>
+                </div>
+
+                <p th:if="${#fields.hasGlobalErrors()}" th:each="err : ${#fields.globalErrors()}" th:text="${err}" class="form-error"></p>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-ghost" onclick="fecharModal()">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Criar Usuário</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal-overlay" id="resetSenhaOverlay" onclick="fecharResetSenhaModal()">
+    <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h2 class="modal-title">Resetar Senha</h2>
+            <button class="icon-btn" onclick="fecharResetSenhaModal()" title="Fechar">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+
+        <form id="resetSenhaFormEl"
+              th:action="${resetSenhaUsuario != null} ? @{/admin/usuarios/{id}/reset-senha(id=${resetSenhaUsuario.id})} : @{/admin/usuarios/__usuario__/reset-senha}"
+              th:object="${resetSenhaForm}"
+              method="post">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
+            <div class="modal-body">
+                <p class="page-subtitle">
+                    Defina uma nova senha para
+                    <strong id="resetSenhaNome" th:text="${resetSenhaUsuario != null ? resetSenhaUsuario.nome : 'o usuário'}">o usuário</strong>.
+                </p>
+
+                <div class="form-group">
+                    <label class="form-label">Nova senha</label>
+                    <input type="password" th:field="*{novaSenha}" class="form-input" autocomplete="new-password"/>
+                    <p th:if="${#fields.hasErrors('novaSenha')}" th:errors="*{novaSenha}" class="form-error"></p>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Confirmar nova senha</label>
+                    <input type="password" th:field="*{confirmarSenha}" class="form-input" autocomplete="new-password"/>
+                    <p th:if="${#fields.hasErrors('confirmarSenha')}" th:errors="*{confirmarSenha}" class="form-error"></p>
+                </div>
+
+                <p th:if="${#fields.hasGlobalErrors()}" th:each="err : ${#fields.globalErrors()}" th:text="${err}" class="form-error"></p>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-ghost" onclick="fecharResetSenhaModal()">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Salvar nova senha</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script th:src="@{/js/app.js}"></script>
+<script th:inline="javascript">
+    function abrirModal() {
+        document.getElementById('modalOverlay').classList.add('visible');
+        document.querySelector('[name="nome"]').focus();
+    }
+    function fecharModal() {
+        document.getElementById('modalOverlay').classList.remove('visible');
+    }
+    function abrirResetSenhaModal(id, nome) {
+        const overlay = document.getElementById('resetSenhaOverlay');
+        const form = document.getElementById('resetSenhaFormEl');
+        const nomeEl = document.getElementById('resetSenhaNome');
+        form.action = '/admin/usuarios/' + id + '/reset-senha';
+        nomeEl.textContent = nome;
+        overlay.classList.add('visible');
+    }
+    function fecharResetSenhaModal() {
+        document.getElementById('resetSenhaOverlay').classList.remove('visible');
+    }
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            fecharModal();
+            fecharResetSenhaModal();
+        }
+    });
+    const modalAberto = /*[[${modalAberto}]]*/ null;
+    const resetSenhaUsuarioId = /*[[${resetSenhaUsuario != null ? resetSenhaUsuario.id : null}]]*/ null;
+    const resetSenhaUsuarioNome = /*[[${resetSenhaUsuario != null ? resetSenhaUsuario.nome : null}]]*/ null;
+    if (modalAberto === 'criar') abrirModal();
+    if (modalAberto === 'reset' && resetSenhaUsuarioId) abrirResetSenhaModal(resetSenhaUsuarioId, resetSenhaUsuarioNome);
+</script>
+
+</body>
+</html>

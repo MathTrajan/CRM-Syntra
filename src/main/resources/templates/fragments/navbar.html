@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<header th:fragment="navbar(titulo)" class="topbar">
+
+    <div class="topbar-left">
+        <button class="icon-btn menu-btn" onclick="toggleSidebar()" title="Menu">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <line x1="3" y1="12" x2="21" y2="12"/>
+                <line x1="3" y1="6" x2="21" y2="6"/>
+                <line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+        </button>
+        <span class="topbar-crumb">Syntra</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             style="color:var(--text-muted); margin:0 2px; stroke-width:1.5">
+            <polyline points="9 18 15 12 9 6"/>
+        </svg>
+        <span class="topbar-title" th:text="${titulo}">Página</span>
+    </div>
+
+    <div class="topbar-right">
+        <div class="topbar-pill">
+            <span class="pill-dot"></span>
+            Online
+        </div>
+        <span class="last-update" id="lastUpdate"></span>
+        <button class="icon-btn" onclick="location.reload()" title="Atualizar página">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <polyline points="23 4 23 10 17 10"/>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+            </svg>
+        </button>
+    </div>
+
+</header>
+
+</body>
+</html>
