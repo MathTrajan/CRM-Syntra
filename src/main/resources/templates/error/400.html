@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Requisição inválida — Syntra</title>
+    <link rel="icon" type="image/svg+xml" th:href="@{/images/favicon.svg}"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com"/>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+    <link rel="stylesheet" th:href="@{/css/app.css}"/>
+</head>
+<body class="login-page">
+<div class="login-glow"></div>
+<div class="login-container">
+    <div class="card login-card" style="text-align:center;">
+        <div class="brand-logo" style="margin:0 auto 16px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M2 12 H5.5 L8 6.5 L11.5 17.5 L15 7.5 L17.5 12 H22" stroke="#F5B82E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </div>
+        <h1 class="page-title">400</h1>
+        <p class="page-subtitle">A solicitação enviada é inválida ou incompleta.</p>
+        <div class="d-flex gap-3" style="justify-content:center; margin-top: 18px;">
+            <a th:href="@{/dashboard}" class="btn btn-primary">Voltar ao painel</a>
+        </div>
+    </div>
+</div>
+</body>
+</html>

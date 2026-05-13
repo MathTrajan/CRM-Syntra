@@ -1,0 +1,36 @@
+# === Maven / Java ===
+target/
+*.class
+*.jar
+*.war
+*.ear
+.mvn/wrapper/maven-wrapper.jar
+hs_err_pid*.log
+
+# === IDE ===
+.idea/
+*.iml
+.vscode/
+.project
+.classpath
+.settings/
+
+# === Claude / Graphify (local apenas) ===
+.claude/
+graphify-out/
+src/graphify-out/
+
+# === Env / segredos ===
+.env
+.env.local
+*.env.local
+application-local.properties
+
+# === Logs ===
+*.log
+logs/
+
+# === OS ===
+.DS_Store
+Thumbs.db
+desktop.ini
