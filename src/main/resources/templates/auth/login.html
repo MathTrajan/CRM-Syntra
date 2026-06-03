@@ -89,7 +89,7 @@
     </div>
 
     <p style="text-align:center; margin-top:20px; font-size:11px; color:var(--text-muted)">
-        Syntra &copy; 2025 · Acesso restrito
+        Syntra &copy; <span th:text="${#temporals.format(#temporals.createNow(), 'yyyy')}">2026</span> · Acesso restrito
     </p>
 
 </div>
