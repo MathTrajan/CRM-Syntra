@@ -104,13 +104,22 @@ public class LeadApiController {
         m.put("statusLabel", lead.getStatus().getLabel());
         m.put("vendedor", lead.getVendedor() != null ? lead.getVendedor().getNome() : null);
         m.put("proximaAcao", lead.getProximaAcao());
-        m.put("proximoContatoEm", lead.getProximoContatoEm() != null ? lead.getProximoContatoEm().toString() : null);
         m.put("ultimaInteracaoEm", lead.getUltimaInteracaoEm() != null ? lead.getUltimaInteracaoEm().toString() : null);
         m.put("lido", lead.isLido());
         m.put("origemExterna", lead.getOrigemExterna());
         m.put("dadosExtras", lead.getDadosExtras());
         m.put("criadoEm", lead.getCriadoEm() != null ? lead.getCriadoEm().toString() : null);
         m.put("atualizadoEm", lead.getAtualizadoEm() != null ? lead.getAtualizadoEm().toString() : null);
+        // anotacoes internas (comentarios) concatenadas: "dd/MM/yyyy HH:mm — autor: texto" por linha
+        DateTimeFormatter fmtAnotacao = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+        StringBuilder anotacoes = new StringBuilder();
+        for (ComentarioLead c : lead.getComentarios()) {
+            if (anotacoes.length() > 0) anotacoes.append("\n");
+            String autor = c.getAutor() != null ? c.getAutor().getNome() : "Sistema";
+            String data = c.getCriadoEm() != null ? c.getCriadoEm().format(fmtAnotacao) : "";
+            anotacoes.append(data).append(" — ").append(autor).append(": ").append(c.getTexto());
+        }
+        m.put("anotacoes", anotacoes.length() > 0 ? anotacoes.toString() : null);
         return m;
     }
 

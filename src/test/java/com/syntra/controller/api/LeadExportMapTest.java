@@ -1,5 +1,6 @@
 package com.syntra.controller.api;
 
+import com.syntra.model.ComentarioLead;
 import com.syntra.model.Lead;
 import com.syntra.model.Usuario;
 import com.syntra.model.enums.JornadaLead;
@@ -44,7 +45,6 @@ class LeadExportMapTest {
         assertEquals(StatusLead.EM_ATENDIMENTO.getLabel(), m.get("statusLabel"));
         assertEquals(JornadaLead.TELEVENDAS.getLabel(), m.get("jornadaLabel"));
         assertEquals("2026-06-03T14:30", m.get("criadoEm"));
-        assertEquals("2026-06-03T14:30", m.get("proximoContatoEm"));
         assertEquals(false, m.get("lido"));
         assertEquals("DIVIA", m.get("origemExterna"));
         assertEquals("{\"x\":1}", m.get("dadosExtras"));
@@ -61,7 +61,25 @@ class LeadExportMapTest {
 
         assertNull(m.get("jornadaLabel"));
         assertNull(m.get("vendedor"));
-        assertNull(m.get("proximoContatoEm"));
+        assertNull(m.get("anotacoes"));
         assertEquals(StatusLead.NOVO.getLabel(), m.get("statusLabel"));
+    }
+
+    @Test
+    void concatenaAnotacoesInternas() {
+        Lead lead = new Lead();
+        lead.setNome("Com notas");
+        lead.setStatus(StatusLead.NOVO);
+        Usuario autor = new Usuario();
+        autor.setNome("Ana");
+        ComentarioLead c = new ComentarioLead();
+        c.setTexto("Cliente pediu retorno");
+        c.setAutor(autor);
+        c.setCriadoEm(LocalDateTime.of(2026, 6, 3, 9, 15));
+        lead.getComentarios().add(c);
+
+        Map<String, Object> m = LeadApiController.leadExportToMap(lead);
+
+        assertEquals("03/06/2026 09:15 — Ana: Cliente pediu retorno", m.get("anotacoes"));
     }
 }
