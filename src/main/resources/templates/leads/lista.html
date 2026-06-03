@@ -31,19 +31,96 @@
                     <span th:text="${totalElementos}">0</span> lead(s) encontrado(s)
                 </p>
             </div>
-            <form th:action="@{/leads/sincronizar}" method="post">
-                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
-                <input type="hidden" name="busca" th:value="${filtro.busca}"/>
-                <input type="hidden" name="status" th:value="${filtro.status}"/>
-                <input type="hidden" name="vendedorId" th:value="${filtro.vendedorId}"/>
-                <input type="hidden" name="dataInicio" th:value="${filtro.dataInicio}"/>
-                <input type="hidden" name="dataFim" th:value="${filtro.dataFim}"/>
-                <input type="hidden" name="page" th:value="${filtro.page}"/>
-                <input type="hidden" name="size" th:value="${filtro.size}"/>
-                <button type="submit" class="btn btn-secondary btn-sm">
-                    Sincronizar Divia
+            <div style="display:flex; gap:10px;">
+                <button type="button" class="btn btn-primary btn-sm" onclick="abrirModalNovoLead()">
+                    + Novo Lead
                 </button>
-            </form>
+                <form th:action="@{/leads/sincronizar}" method="post" style="margin:0">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                    <input type="hidden" name="busca" th:value="${filtro.busca}"/>
+                    <input type="hidden" name="status" th:value="${filtro.status}"/>
+                    <input type="hidden" name="jornada" th:value="${filtro.jornada}"/>
+                    <input type="hidden" name="vendedorId" th:value="${filtro.vendedorId}"/>
+                    <input type="hidden" name="dataInicio" th:value="${filtro.dataInicio}"/>
+                    <input type="hidden" name="dataFim" th:value="${filtro.dataFim}"/>
+                    <input type="hidden" name="page" th:value="${filtro.page}"/>
+                    <input type="hidden" name="size" th:value="${filtro.size}"/>
+                    <button type="submit" class="btn btn-secondary btn-sm">
+                        Sincronizar Divia
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Modal: cadastro manual de lead -->
+        <div id="modalNovoLead" class="modal-overlay" style="display:none;">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <h2 class="modal-title">Novo Lead</h2>
+                    <button type="button" class="modal-close" onclick="fecharModalNovoLead()" aria-label="Fechar">&times;</button>
+                </div>
+                <form th:action="@{/leads/manual}" method="post" class="modal-body">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
+                    <div class="form-row">
+                        <label class="filter-label">Nome *</label>
+                        <input type="text" name="nome" class="form-input" required maxlength="200"/>
+                    </div>
+
+                    <div class="form-grid-2">
+                        <div class="form-row">
+                            <label class="filter-label">Telefone</label>
+                            <input type="text" name="telefone" class="form-input" maxlength="30"/>
+                        </div>
+                        <div class="form-row">
+                            <label class="filter-label">E-mail</label>
+                            <input type="email" name="email" class="form-input" maxlength="200"/>
+                        </div>
+                    </div>
+
+                    <div class="form-grid-2">
+                        <div class="form-row">
+                            <label class="filter-label">Origem</label>
+                            <input type="text" name="origem" class="form-input" maxlength="100" placeholder="Indicação, WhatsApp..."/>
+                        </div>
+                        <div class="form-row">
+                            <label class="filter-label">Campanha</label>
+                            <input type="text" name="campanha" class="form-input" maxlength="100"/>
+                        </div>
+                    </div>
+
+                    <div class="form-grid-2">
+                        <div class="form-row">
+                            <label class="filter-label">Jornada</label>
+                            <select name="jornada" class="form-input">
+                                <option value="">— selecionar —</option>
+                                <option th:each="j : ${jornadaList}"
+                                        th:value="${j.name()}"
+                                        th:text="${j.label}"></option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label class="filter-label">Vendedor</label>
+                            <select name="vendedorId" class="form-input">
+                                <option value="">Sem vendedor</option>
+                                <option th:each="v : ${vendedores}"
+                                        th:value="${v.id}"
+                                        th:text="${v.nome}"></option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <label class="filter-label">Mensagem / observação</label>
+                        <textarea name="mensagem" class="form-input" rows="3" maxlength="2000"></textarea>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="fecharModalNovoLead()">Cancelar</button>
+                        <button type="submit" class="btn btn-primary btn-sm">Cadastrar</button>
+                    </div>
+                </form>
+            </div>
         </div>
 
         <div class="filter-bar">
@@ -65,6 +142,18 @@
                                 th:value="${s.name()}"
                                 th:text="${s.label}"
                                 th:selected="${filtro.status == s}">
+                        </option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label class="filter-label">Jornada</label>
+                    <select name="jornada" class="form-input">
+                        <option value="">Todas</option>
+                        <option th:each="j : ${jornadaList}"
+                                th:value="${j.name()}"
+                                th:text="${j.label}"
+                                th:selected="${filtro.jornada == j}">
                         </option>
                     </select>
                 </div>
@@ -126,7 +215,7 @@
                         Atribuir selecionados
                     </button>
                     <button type="button" class="btn btn-secondary btn-sm" onclick="exportarLeads()">
-                        Exportar JSON
+                        Exportar Excel
                     </button>
                 </div>
             </div>
@@ -141,6 +230,7 @@
                         <th>Lead</th>
                         <th>Contato</th>
                         <th>Origem</th>
+                        <th>Jornada</th>
                         <th>Status</th>
                         <th>Vendedor</th>
                         <th>Recebido</th>
@@ -149,7 +239,7 @@
                     </thead>
                     <tbody>
                     <tr th:if="${#lists.isEmpty(leads)}">
-                        <td colspan="8" class="table-empty">
+                        <td colspan="9" class="table-empty">
                             Nenhum lead encontrado para os filtros aplicados.
                         </td>
                     </tr>
@@ -157,7 +247,8 @@
                     <tr th:each="lead : ${leads}"
                         th:class="${!lead.lido} ? 'row-unread' : ''"
                         th:id="'row-' + ${lead.id}"
-                        class="fade-in">
+                        th:attr="data-lead-url=@{/leads/{id}(id=${lead.id})}"
+                        class="fade-in row-clickable">
 
                         <td>
                             <input type="checkbox" class="select-lead" th:value="${lead.id}" onchange="updateBulkActions()"/>
@@ -166,9 +257,14 @@
                             <div class="lead-nome-cell">
                                 <span class="unread-dot" th:if="${!lead.lido}" title="Nao lido"></span>
                                 <div class="lead-cell-stack">
-                                    <a th:href="@{/leads/{id}(id=${lead.id})}"
-                                       th:text="${lead.nome}"
-                                       class="lead-link">-</a>
+                                    <div class="lead-link-row">
+                                        <a th:href="@{/leads/{id}(id=${lead.id})}"
+                                           th:text="${lead.nome}"
+                                           class="lead-link">-</a>
+                                        <span class="origem-tag origem-tag-manual"
+                                              th:if="${lead.origemExterna == 'MANUAL'}"
+                                              title="Lead cadastrado manualmente">Manual</span>
+                                    </div>
                                     <div class="lead-flags" th:if="${lead.followUpAtrasado or lead.parado}">
                                         <span class="alert-chip alert-chip-warning" th:if="${lead.followUpAtrasado}">Follow-up atrasado</span>
                                         <span class="alert-chip alert-chip-danger" th:if="${lead.parado and !lead.followUpAtrasado}">Parado</span>
@@ -179,7 +275,13 @@
 
                         <td>
                             <div class="lead-contact">
-                                <span th:if="${lead.telefone}" th:text="${lead.telefone}" class="lc-phone"></span>
+                                <a th:if="${lead.telefone}"
+                                   th:href="${lead.whatsappUrl}"
+                                   th:text="${lead.telefone}"
+                                   target="_blank"
+                                   rel="noopener"
+                                   class="lc-phone lc-phone-link"
+                                   onclick="event.stopPropagation()"></a>
                                 <span th:if="${lead.email}" th:text="${lead.email}" class="lc-email"></span>
                             </div>
                         </td>
@@ -187,6 +289,13 @@
                         <td>
                             <span class="origin-chip" th:if="${lead.origem}" th:text="${lead.origem}"></span>
                             <span class="text-muted" th:unless="${lead.origem}">-</span>
+                        </td>
+
+                        <td>
+                            <span th:if="${lead.jornada != null}"
+                                  th:class="'badge badge-jornada-' + ${lead.jornada.name().toLowerCase()}"
+                                  th:text="${lead.jornada.label}">-</span>
+                            <span th:if="${lead.jornada == null}" class="text-muted">-</span>
                         </td>
 
                         <td>
@@ -202,8 +311,13 @@
                         <td class="text-sm text-sec"
                             th:text="${#temporals.format(lead.criadoEm, 'dd/MM/yy HH:mm')}">-</td>
 
-                        <td>
-                            <a th:href="@{/leads/{id}(id=${lead.id})}" class="btn btn-ghost btn-sm">Abrir</a>
+                        <td class="cell-action">
+                            <a th:href="@{/leads/{id}(id=${lead.id})}" class="btn-open" title="Abrir lead">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+                                     stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="9 18 15 12 9 6"/>
+                                </svg>
+                            </a>
                         </td>
                     </tr>
                     </tbody>
@@ -212,7 +326,7 @@
 
             <div class="pagination" th:if="${totalPaginas > 1}">
                 <a th:if="${paginaAtual > 0}"
-                   th:href="@{/leads(busca=${filtro.busca},status=${filtro.status},vendedorId=${filtro.vendedorId},dataInicio=${filtro.dataInicio},dataFim=${filtro.dataFim},page=${paginaAtual - 1})}"
+                   th:href="@{/leads(busca=${filtro.busca},status=${filtro.status},jornada=${filtro.jornada},vendedorId=${filtro.vendedorId},dataInicio=${filtro.dataInicio},dataFim=${filtro.dataFim},page=${paginaAtual - 1})}"
                    class="btn btn-ghost btn-sm">
                     Anterior
                 </a>
@@ -221,7 +335,7 @@
                     de <strong th:text="${totalPaginas}">1</strong>
                 </span>
                 <a th:if="${paginaAtual < totalPaginas - 1}"
-                   th:href="@{/leads(busca=${filtro.busca},status=${filtro.status},vendedorId=${filtro.vendedorId},dataInicio=${filtro.dataInicio},dataFim=${filtro.dataFim},page=${paginaAtual + 1})}"
+                   th:href="@{/leads(busca=${filtro.busca},status=${filtro.status},jornada=${filtro.jornada},vendedorId=${filtro.vendedorId},dataInicio=${filtro.dataInicio},dataFim=${filtro.dataFim},page=${paginaAtual + 1})}"
                    class="btn btn-ghost btn-sm">
                     Proxima
                 </a>
@@ -232,5 +346,21 @@
 
 <script th:src="@{/js/app.js}"></script>
 <script th:src="@{/js/leads.js}"></script>
+<script>
+    function abrirModalNovoLead() {
+        document.getElementById('modalNovoLead').style.display = 'flex';
+        const primeiro = document.querySelector('#modalNovoLead input[name="nome"]');
+        if (primeiro) primeiro.focus();
+    }
+    function fecharModalNovoLead() {
+        document.getElementById('modalNovoLead').style.display = 'none';
+    }
+    document.getElementById('modalNovoLead')?.addEventListener('click', function (e) {
+        if (e.target === this) fecharModalNovoLead();
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') fecharModalNovoLead();
+    });
+</script>
 </body>
 </html>

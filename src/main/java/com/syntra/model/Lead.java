@@ -1,9 +1,12 @@
 package com.syntra.model;
 
+import com.syntra.model.enums.JornadaLead;
 import com.syntra.model.enums.StatusLead;
 import jakarta.persistence.*;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,6 +36,10 @@ public class Lead {
 
     @Column(columnDefinition = "TEXT")
     private String mensagem;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 30)
+    private JornadaLead jornada;
 
     @Enumerated(EnumType.STRING)
     @Column(length = 30, nullable = false)
@@ -119,6 +126,8 @@ public class Lead {
     public void setCampanha(String campanha)          { this.campanha = campanha; }
     public String getMensagem()                       { return mensagem; }
     public void setMensagem(String mensagem)          { this.mensagem = mensagem; }
+    public JornadaLead getJornada()                   { return jornada; }
+    public void setJornada(JornadaLead jornada)       { this.jornada = jornada; }
     public StatusLead getStatus()                     { return status; }
     public void setStatus(StatusLead status)          { this.status = status; }
     public boolean isLido()                           { return lido; }
@@ -129,10 +138,7 @@ public class Lead {
     public void setDadosExtras(String dadosExtras)    { this.dadosExtras = dadosExtras; }
 
     public boolean isWhatsappContact() {
-        if (origem == null || telefone == null) {
-            return false;
-        }
-        return origem.toLowerCase().contains("whatsapp") && !getTelefoneSomenteDigitos().isBlank();
+        return telefone != null && !getTelefoneSomenteDigitos().isBlank();
     }
 
     public String getTelefoneSomenteDigitos() {
@@ -150,7 +156,16 @@ public class Lead {
         if (numero.startsWith("0")) {
             numero = numero.substring(1);
         }
-        String mensagem = "Ol%C3%A1!%20Vi%20seu%20interesse%20em%20nossos%20produtos.%20Como%20posso%20ajudar%3F";
+        String mensagem = URLEncoder.encode(
+                        "Olá! Tudo bem?\n\n"
+                                + "Aqui é da Pró Colchões, representante das marcas Probel e Prodormir. "
+                                + "Recebemos o seu cadastro através da nossa página B2B e gostaríamos "
+                                + "de entender melhor a sua necessidade.\n\n"
+                                + "Trabalhamos com condições especiais para lojistas, hotéis e distribuidores. "
+                                + "Antes de seguirmos, queria confirmar com você: já está sendo atendido por "
+                                + "algum de nossos vendedores ou posso dar continuidade no seu atendimento por aqui?",
+                        StandardCharsets.UTF_8)
+                .replace("+", "%20");
         return "https://wa.me/55" + numero + "?text=" + mensagem;
     }
 

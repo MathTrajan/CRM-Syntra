@@ -15,6 +15,7 @@ function parseJsonOrThrow(response) {
 
 function salvarAtualizacao() {
   const id = document.getElementById('leadId').value;
+  const jornada = document.getElementById('jornadaSelect').value || null;
   const status = document.getElementById('statusSelect').value;
   const vendedorId = document.getElementById('vendedorSelect').value;
   const btn = document.getElementById('btnSalvar');
@@ -26,7 +27,7 @@ function salvarAtualizacao() {
   fetch(`/api/leads/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrf() },
-    body: JSON.stringify({ status, vendedorId })
+    body: JSON.stringify({ jornada, status, vendedorId })
   })
     .then(parseJsonOrThrow)
     .then(data => {

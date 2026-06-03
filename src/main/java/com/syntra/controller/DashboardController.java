@@ -1,5 +1,6 @@
 package com.syntra.controller;
 
+import com.syntra.dto.DashboardFiltroDTO;
 import com.syntra.service.DashboardService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -15,8 +16,9 @@ public class DashboardController {
     }
 
     @GetMapping({"/", "/dashboard"})
-    public String dashboard(Model model) {
-        model.addAttribute("metricas", dashboardService.getMetricas());
+    public String dashboard(DashboardFiltroDTO filtro, Model model) {
+        model.addAttribute("metricas", dashboardService.getMetricas(filtro));
+        model.addAttribute("filtro", filtro);
         model.addAttribute("paginaAtiva", "dashboard");
         return "dashboard/index";
     }

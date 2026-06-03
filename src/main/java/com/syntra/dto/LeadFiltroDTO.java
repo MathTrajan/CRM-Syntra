@@ -1,5 +1,6 @@
 package com.syntra.dto;
 
+import com.syntra.model.enums.JornadaLead;
 import com.syntra.model.enums.StatusLead;
 import org.springframework.format.annotation.DateTimeFormat;
 
@@ -8,6 +9,7 @@ import java.time.LocalDate;
 public class LeadFiltroDTO {
 
     private StatusLead status;
+    private JornadaLead jornada;
     private String vendedorId;
     private String busca;
 
@@ -22,6 +24,8 @@ public class LeadFiltroDTO {
 
     public StatusLead getStatus()                 { return status; }
     public void setStatus(StatusLead status)      { this.status = status; }
+    public JornadaLead getJornada()               { return jornada; }
+    public void setJornada(JornadaLead jornada)   { this.jornada = jornada; }
     public String getVendedorId()                 { return vendedorId; }
     public void setVendedorId(String v)           { this.vendedorId = v; }
     public String getBusca()                      { return busca; }

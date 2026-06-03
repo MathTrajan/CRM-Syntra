@@ -1,6 +1,7 @@
 package com.syntra.service;
 
 import com.syntra.dto.AtualizarFollowUpDTO;
+import com.syntra.dto.CriarLeadManualDTO;
 import com.syntra.dto.CriarTarefaLeadDTO;
 import com.syntra.dto.LeadFiltroDTO;
 import com.syntra.dto.LeadUpdateDTO;
@@ -11,6 +12,8 @@ import com.syntra.model.HistoricoLead;
 import com.syntra.model.Lead;
 import com.syntra.model.TarefaLead;
 import com.syntra.model.Usuario;
+import com.syntra.model.enums.JornadaLead;
+import com.syntra.model.enums.Perfil;
 import com.syntra.model.enums.StatusLead;
 import com.syntra.model.enums.StatusTarefaLead;
 import com.syntra.repository.ComentarioLeadRepository;
@@ -36,6 +39,7 @@ import java.util.stream.Stream;
 public class LeadService {
 
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+    private static final String LISANDRA_ID = "0cad46fb-5795-4683-9135-18b051e6b32b";
 
     private final LeadRepository leadRepo;
     private final UsuarioRepository usuarioRepo;
@@ -59,7 +63,7 @@ public class LeadService {
     public Page<Lead> listar(LeadFiltroDTO filtro) {
         Pageable pageable = PageRequest.of(filtro.getPage(), filtro.getSize());
         Filtros f = montarFiltros(filtro);
-        return leadRepo.buscar(filtro.getStatus(), f.semVendedor, f.vendedorId,
+        return leadRepo.buscar(filtro.getStatus(), filtro.getJornada(), f.semVendedor, f.vendedorId,
                 f.busca, f.buscaDigits, f.dataInicio, f.dataFim, pageable);
     }
 
@@ -70,6 +74,7 @@ public class LeadService {
 
     @Transactional
     public Lead criarViaWebhook(WebhookPayloadDTO payload) {
+        LocalDateTime agora = LocalDateTime.now();
         Lead lead = new Lead();
         lead.setNome(payload.getNome());
         lead.setEmail(payload.getEmail());
@@ -78,12 +83,113 @@ public class LeadService {
         lead.setCampanha(payload.getCampanha());
         lead.setMensagem(payload.getMensagem());
         lead.setDadosExtras(payload.getExtrasJson());
-        lead.setUltimaInteracaoEm(LocalDateTime.now());
+        lead.setUltimaInteracaoEm(agora);
+
+        Optional<Lead> existente = buscarLeadExistenteMesmoCliente(
+                payload.getEmail(), payload.getTelefone(), null);
+
+        Usuario vendedorAuto;
+        String motivoAtribuicao;
+        if (existente.isPresent()) {
+            Lead ant = existente.get();
+            vendedorAuto = ant.getVendedor();
+            if (ant.getJornada() != null) {
+                lead.setJornada(ant.getJornada());
+            }
+            if (ant.getStatus() != null) {
+                lead.setStatus(ant.getStatus());
+            }
+            motivoAtribuicao = vendedorAuto != null
+                    ? "Cliente recorrente - replicado vendedor/jornada/status de atendimento anterior"
+                    : "Cliente recorrente - replicado jornada/status de atendimento anterior";
+        } else {
+            vendedorAuto = proximoVendedorRoundRobin();
+            motivoAtribuicao = vendedorAuto != null
+                    ? "Atribuido automaticamente (round-robin) para: " + vendedorAuto.getNome()
+                    : null;
+        }
+        if (vendedorAuto != null) {
+            lead.setVendedor(vendedorAuto);
+            aplicarRegraJornadaLisandra(lead);
+        }
 
         lead = leadRepo.save(lead);
 
         registrarHistorico(lead, null, "lead", "ENTRADA", "WEBHOOK", null, "Novo",
-                "Lead recebido via LeadPage", LocalDateTime.now());
+                "Lead recebido via LeadPage", agora);
+        if (vendedorAuto != null) {
+            registrarHistorico(lead, null, "vendedor", "ALTERACAO", "WEBHOOK",
+                    "Sem vendedor", vendedorAuto.getNome(), motivoAtribuicao, agora);
+        }
+
+        return lead;
+    }
+
+    @Transactional
+    public Lead criarManual(CriarLeadManualDTO dto, String autorEmail) {
+        Usuario autor = buscarAutorOpcional(autorEmail);
+        LocalDateTime agora = LocalDateTime.now();
+
+        Lead lead = new Lead();
+        lead.setNome(dto.getNome().trim());
+        lead.setEmail(blankToNull(dto.getEmail()));
+        lead.setTelefone(blankToNull(dto.getTelefone()));
+        lead.setOrigem(blankToNull(dto.getOrigem()));
+        lead.setCampanha(blankToNull(dto.getCampanha()));
+        lead.setMensagem(blankToNull(dto.getMensagem()));
+        lead.setJornada(dto.getJornada());
+        lead.setOrigemExterna("MANUAL");
+        lead.setLido(true);
+        lead.setUltimaInteracaoEm(agora);
+
+        // Jornada Venda Direta => status ja entra como CONVERTIDO
+        if (dto.getJornada() == JornadaLead.VENDA_DIRETA) {
+            lead.setStatus(StatusLead.CONVERTIDO);
+        }
+
+        Usuario vendedor = null;
+        String motivoAtribuicao = null;
+        if (dto.getVendedorId() != null && !dto.getVendedorId().isBlank()) {
+            vendedor = usuarioRepo.findById(dto.getVendedorId())
+                    .orElseThrow(() -> new IllegalArgumentException("Vendedor nao encontrado."));
+        } else if (isVendedorAtivo(autor)) {
+            vendedor = autor;
+            motivoAtribuicao = "Atribuido automaticamente ao vendedor que realizou o cadastro.";
+        } else {
+            Optional<Lead> existente = buscarLeadExistenteMesmoCliente(
+                    dto.getEmail(), dto.getTelefone(), null);
+            if (existente.isPresent()) {
+                Lead ant = existente.get();
+                vendedor = ant.getVendedor();
+                if (ant.getJornada() != null && lead.getJornada() == null) {
+                    lead.setJornada(ant.getJornada());
+                }
+                if (ant.getStatus() != null && dto.getJornada() != JornadaLead.VENDA_DIRETA) {
+                    lead.setStatus(ant.getStatus());
+                }
+                motivoAtribuicao = vendedor != null
+                        ? "Cliente recorrente - replicado vendedor/jornada/status anterior"
+                        : "Cliente recorrente - replicado jornada/status anterior";
+            } else {
+                vendedor = proximoVendedorRoundRobin();
+                if (vendedor != null) {
+                    motivoAtribuicao = "Atribuido automaticamente (round-robin) para: " + vendedor.getNome();
+                }
+            }
+        }
+        if (vendedor != null) {
+            lead.setVendedor(vendedor);
+            aplicarRegraJornadaLisandra(lead);
+        }
+
+        lead = leadRepo.save(lead);
+
+        registrarHistorico(lead, autor, "lead", "ENTRADA", "PAINEL", null, "Novo",
+                "Lead cadastrado manualmente", agora);
+        if (motivoAtribuicao != null) {
+            registrarHistorico(lead, autor, "vendedor", "ALTERACAO", "PAINEL",
+                    "Sem vendedor", vendedor.getNome(), motivoAtribuicao, agora);
+        }
 
         return lead;
     }
@@ -94,11 +200,25 @@ public class LeadService {
         Usuario autor = buscarAutorOpcional(autorEmail);
         LocalDateTime eventoEm = LocalDateTime.now();
 
-        if (dto.getStatus() != null && dto.getStatus() != lead.getStatus()) {
+        boolean jornadaMudou = dto.getJornada() != lead.getJornada();
+        if (jornadaMudou) {
+            registrarHistorico(lead, autor, "jornada", "ALTERACAO", "PAINEL",
+                    labelJornada(lead.getJornada()), labelJornada(dto.getJornada()),
+                    "Jornada alterada para: " + labelJornada(dto.getJornada()), eventoEm);
+            lead.setJornada(dto.getJornada());
+        }
+
+        // Regra de negocio: jornada Venda Direta forca status CONVERTIDO
+        StatusLead statusAlvo = dto.getStatus();
+        if (dto.getJornada() == JornadaLead.VENDA_DIRETA && lead.getStatus() != StatusLead.CONVERTIDO) {
+            statusAlvo = StatusLead.CONVERTIDO;
+        }
+
+        if (statusAlvo != null && statusAlvo != lead.getStatus()) {
             registrarHistorico(lead, autor, "status", "ALTERACAO", "PAINEL",
-                    lead.getStatus().getLabel(), dto.getStatus().getLabel(),
-                    "Status alterado para: " + dto.getStatus().getLabel(), eventoEm);
-            lead.setStatus(dto.getStatus());
+                    lead.getStatus().getLabel(), statusAlvo.getLabel(),
+                    "Status alterado para: " + statusAlvo.getLabel(), eventoEm);
+            lead.setStatus(statusAlvo);
         }
 
         if (dto.getVendedorId() != null) {
@@ -114,9 +234,17 @@ public class LeadService {
             } else if (!dto.getVendedorId().equals(vendedorAtualId)) {
                 Usuario vendedor = usuarioRepo.findById(dto.getVendedorId())
                         .orElseThrow(() -> new IllegalArgumentException("Vendedor nao encontrado."));
+                JornadaLead jornadaAntes = lead.getJornada();
                 lead.setVendedor(vendedor);
+                aplicarRegraJornadaLisandra(lead);
                 registrarHistorico(lead, autor, "vendedor", "ALTERACAO", "PAINEL",
                         vendedorAntes, vendedor.getNome(), "Atribuido para: " + vendedor.getNome(), eventoEm);
+                if (isLisandra(vendedor) && jornadaAntes != JornadaLead.TELEVENDAS) {
+                    registrarHistorico(lead, autor, "jornada", "ALTERACAO", "PAINEL",
+                            labelJornada(jornadaAntes), labelJornada(JornadaLead.TELEVENDAS),
+                            "Jornada ajustada automaticamente para: " + labelJornada(JornadaLead.TELEVENDAS),
+                            eventoEm);
+                }
             }
         }
 
@@ -129,7 +257,7 @@ public class LeadService {
     public List<Lead> exportar(LeadFiltroDTO filtro) {
         Pageable pageable = Pageable.unpaged();
         Filtros f = montarFiltros(filtro);
-        return leadRepo.buscar(filtro.getStatus(), f.semVendedor, f.vendedorId,
+        return leadRepo.buscar(filtro.getStatus(), filtro.getJornada(), f.semVendedor, f.vendedorId,
                         f.busca, f.buscaDigits, f.dataInicio, f.dataFim, pageable)
                 .getContent();
     }
@@ -216,8 +344,16 @@ public class LeadService {
 
             if (!vendedorDepois.equals(vendedorAntes)) {
                 lead.setVendedor(vendedor);
+                JornadaLead jornadaAntes = lead.getJornada();
+                aplicarRegraJornadaLisandra(lead);
                 registrarHistorico(lead, autor, "vendedor", "ALTERACAO", "PAINEL",
                         vendedorAntes, vendedorDepois, "Atribuido em massa para: " + vendedorDepois, eventoEm);
+                if (isLisandra(vendedor) && jornadaAntes != JornadaLead.TELEVENDAS) {
+                    registrarHistorico(lead, autor, "jornada", "ALTERACAO", "PAINEL",
+                            labelJornada(jornadaAntes), labelJornada(JornadaLead.TELEVENDAS),
+                            "Jornada ajustada automaticamente para: " + labelJornada(JornadaLead.TELEVENDAS),
+                            eventoEm);
+                }
             }
 
             lead.setLido(true);
@@ -424,6 +560,87 @@ public class LeadService {
         return usuarioRepo.findByEmail(autorEmail.trim().toLowerCase(Locale.ROOT)).orElse(null);
     }
 
+    /**
+     * Busca o lead mais recente do mesmo cliente (mesmo e-mail ou mesmo telefone),
+     * ignorando o proprio lead passado em :exceptId quando aplicavel.
+     * Retorna empty quando nao ha match.
+     */
+    private Optional<Lead> buscarLeadExistenteMesmoCliente(String email, String telefone, String exceptId) {
+        String emailNorm = (email == null || email.isBlank())
+                ? null : email.trim().toLowerCase(Locale.ROOT);
+        String telDigits = normalizarTelefone(telefone);
+        if (telDigits != null && telDigits.length() < 8) {
+            telDigits = null;
+        }
+        if (emailNorm == null && telDigits == null) {
+            return Optional.empty();
+        }
+        final String telDigitsFinal = telDigits;
+        List<Lead> candidatos = leadRepo.findClienteExistente(emailNorm, telDigits).stream()
+                .filter(l -> exceptId == null || !exceptId.equals(l.getId()))
+                .toList();
+
+        if (telDigitsFinal != null) {
+            Optional<Lead> porTelefone = candidatos.stream()
+                    .filter(l -> telDigitsFinal.equals(normalizarTelefone(l.getTelefone())))
+                    .findFirst();
+            if (porTelefone.isPresent()) {
+                return porTelefone;
+            }
+        }
+
+        return candidatos.stream().findFirst();
+    }
+
+    /**
+     * Round-robin entre vendedores ativos: pega o proximo na ordem alfabetica
+     * apos o vendedor do ultimo lead atribuido. Se nao houver historico, comeca
+     * pelo primeiro da lista. Retorna null se nao houver vendedores cadastrados.
+     */
+    private Usuario proximoVendedorRoundRobin() {
+        List<Usuario> vendedores = usuarioRepo.findByPerfilAndAtivoTrueOrderByNome(Perfil.VENDEDOR);
+        if (vendedores.isEmpty()) {
+            return null;
+        }
+
+        Optional<Lead> ultimo = leadRepo.findFirstByVendedorIsNotNullOrderByCriadoEmDesc();
+        if (ultimo.isEmpty() || ultimo.get().getVendedor() == null) {
+            return vendedores.get(0);
+        }
+
+        String ultimoId = ultimo.get().getVendedor().getId();
+        int idx = -1;
+        for (int i = 0; i < vendedores.size(); i++) {
+            if (vendedores.get(i).getId().equals(ultimoId)) {
+                idx = i;
+                break;
+            }
+        }
+        // Vendedor antigo nao esta mais ativo ou nao e' vendedor: comeca do inicio
+        if (idx < 0) {
+            return vendedores.get(0);
+        }
+        return vendedores.get((idx + 1) % vendedores.size());
+    }
+
+    private void aplicarRegraJornadaLisandra(Lead lead) {
+        if (isLisandra(lead.getVendedor())) {
+            lead.setJornada(JornadaLead.TELEVENDAS);
+        }
+    }
+
+    private String normalizarTelefone(String telefone) {
+        return telefone == null ? null : telefone.replaceAll("\\D", "");
+    }
+
+    private boolean isLisandra(Usuario vendedor) {
+        return vendedor != null && LISANDRA_ID.equals(vendedor.getId());
+    }
+
+    private boolean isVendedorAtivo(Usuario usuario) {
+        return usuario != null && usuario.isAtivo() && usuario.getPerfil() == Perfil.VENDEDOR;
+    }
+
     private String descricaoNovaTarefa(TarefaLead tarefa) {
         if (tarefa.getVencimentoEm() == null) {
             return "Nova tarefa criada: " + tarefa.getTitulo();
@@ -454,6 +671,10 @@ public class LeadService {
 
     private String vazioParaPlaceholder(String valor) {
         return valor == null || valor.isBlank() ? "Nao definido" : valor;
+    }
+
+    private String labelJornada(JornadaLead jornada) {
+        return jornada != null ? jornada.getLabel() : "Nao definida";
     }
 
     private boolean equalsNullable(Object a, Object b) {

@@ -3,9 +3,11 @@ package com.syntra.model.enums;
 public enum StatusLead {
     NOVO("Novo"),
     EM_ATENDIMENTO("Em Atendimento"),
+    EM_OUTRO_ATENDIMENTO("Em Outro Atendimento"),
     AGUARDANDO_RETORNO("Aguardando Retorno"),
     CONVERTIDO("Convertido"),
-    PERDIDO("Perdido");
+    PERDIDO("Perdido"),
+    CADASTRADO_NO_SITE("Cadastrado no Site");
 
     private final String label;
 

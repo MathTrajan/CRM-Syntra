@@ -27,6 +27,7 @@ CREATE TABLE lead (
     origem        VARCHAR(100),
     campanha      VARCHAR(100),
     mensagem      CLOB,
+    jornada       VARCHAR(30),
     status        VARCHAR(30)  NOT NULL DEFAULT 'NOVO',
     lido          BOOLEAN      NOT NULL DEFAULT FALSE,
     vendedor_id   VARCHAR(36)  REFERENCES usuario(id) ON DELETE SET NULL,

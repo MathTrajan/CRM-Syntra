@@ -86,9 +86,32 @@ public class LeadApiController {
     public ResponseEntity<List<Map<String, Object>>> exportar(LeadFiltroDTO filtro) {
         List<Map<String, Object>> lista = leadService.exportar(filtro)
                 .stream()
-                .map(this::leadToMap)
+                .map(LeadApiController::leadExportToMap)
                 .toList();
         return ResponseEntity.ok(lista);
+    }
+
+    // mapa completo para exportacao: dados da API/webhook + campos do sistema; datas em ISO
+    static Map<String, Object> leadExportToMap(Lead lead) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("nome", lead.getNome());
+        m.put("email", lead.getEmail());
+        m.put("telefone", lead.getTelefone());
+        m.put("origem", lead.getOrigem());
+        m.put("campanha", lead.getCampanha());
+        m.put("mensagem", lead.getMensagem());
+        m.put("jornadaLabel", lead.getJornada() != null ? lead.getJornada().getLabel() : null);
+        m.put("statusLabel", lead.getStatus().getLabel());
+        m.put("vendedor", lead.getVendedor() != null ? lead.getVendedor().getNome() : null);
+        m.put("proximaAcao", lead.getProximaAcao());
+        m.put("proximoContatoEm", lead.getProximoContatoEm() != null ? lead.getProximoContatoEm().toString() : null);
+        m.put("ultimaInteracaoEm", lead.getUltimaInteracaoEm() != null ? lead.getUltimaInteracaoEm().toString() : null);
+        m.put("lido", lead.isLido());
+        m.put("origemExterna", lead.getOrigemExterna());
+        m.put("dadosExtras", lead.getDadosExtras());
+        m.put("criadoEm", lead.getCriadoEm() != null ? lead.getCriadoEm().toString() : null);
+        m.put("atualizadoEm", lead.getAtualizadoEm() != null ? lead.getAtualizadoEm().toString() : null);
+        return m;
     }
 
     @PostMapping("/bulk-assign")
@@ -115,6 +138,8 @@ public class LeadApiController {
         m.put("telefone", lead.getTelefone());
         m.put("origem", lead.getOrigem());
         m.put("campanha", lead.getCampanha());
+        m.put("jornada", lead.getJornada() != null ? lead.getJornada().name() : null);
+        m.put("jornadaLabel", lead.getJornada() != null ? lead.getJornada().getLabel() : null);
         m.put("status", lead.getStatus().name());
         m.put("statusLabel", lead.getStatus().getLabel());
         m.put("vendedor", lead.getVendedor() != null ? lead.getVendedor().getNome() : null);
@@ -127,6 +152,8 @@ public class LeadApiController {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", lead.getId());
         m.put("nome", lead.getNome());
+        m.put("jornada", lead.getJornada() != null ? lead.getJornada().name() : null);
+        m.put("jornadaLabel", lead.getJornada() != null ? lead.getJornada().getLabel() : null);
         m.put("status", lead.getStatus().name());
         m.put("statusLabel", lead.getStatus().getLabel());
         m.put("lido", lead.isLido());

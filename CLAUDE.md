@@ -4,36 +4,36 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Contexto do Projeto
 
-> Gerado por /mapa em 2026-05-13. Grafo: `G:\Meu Drive\Obsidian Vault\Graphify\syntra\graphify-out\Syntra - Grafo.md` · 72 arquivos · 580 nós · 752 arestas · 48 comunidades
+> Gerado por /mapa em 2026-05-19. Vault: `G:\Meu Drive\Obsidian Vault\Graphify\syntra\` · 73 nós · 112 arestas · 7 comunidades
 
-### Núcleo do sistema (god nodes)
-- `Lead` — 46 conexões — entidade central do CRM, agrega comentários, histórico, tarefas, vendedor
-- `DiviaLeadDTO` — 29 conexões — payload da integração externa Divia (sincroniza leads de marketing)
-- `LeadService` — 28 conexões — orquestra ciclo de vida do lead, audit trail e regras de pipeline
-- `Usuario` — 24 conexões — identidade autenticada (vendedor/admin) ligada a leads e tarefas
-- `HistoricoLead` — 22 conexões — log imutável de mudanças por campo (antes/depois) com origem da ação
+**Para qualquer dúvida arquitetural, leia primeiro `_index.md` e o hub da comunidade relevante antes de explorar nodes/.**
 
-### Comunidades principais
-| ID | Nome | Tamanho |
-|---|---|---|
-| C0 | Camada de Serviço | 46 nós |
-| C1 | Divia Lead Payload | 42 nós |
-| C2 | Entidade Lead | 41 nós |
-| C3 | Conta e Perfil | 36 nós |
-| C4 | Lead Controller (HTML) | 32 nós |
-| C5 | Repositórios JPA | 31 nós |
-| C6 | Usuário e Autenticação | 29 nós |
-| C7 | Histórico (Audit) | 26 nós |
-| C8 | Tarefa do Lead | 22 nós |
-| C9 | Timeline DTO | 21 nós |
-| C10 | Seed e Dashboard | 20 nós |
-| C12 | Padrões Arquiteturais | 19 nós |
-| C13 | Lead REST API | 18 nós |
+### Ponto de entrada
+`G:\Meu Drive\Obsidian Vault\Graphify\syntra\_index.md`
 
-### Conexões não óbvias
-- `LeadService` é ponte entre Repositórios JPA, Timeline DTO, Lead Controller (HTML) e Histórico — betweenness 0.150, qualquer mudança nele toca 4 comunidades
-- `UsuarioRepository` une Camada de Serviço a Conta/Perfil e Autenticação — alterar consultas aqui afeta login E perfil
-- 21 nós isolados incluindo `SyntraApplication`, `SecurityConfig`, `AuthController`, `DashboardController` — pontos de entrada legítimos, mas indicam fronteiras pouco documentadas
+### God nodes (núcleo — ausência quebra o sistema)
+- `[[lead-entity]]` — 11 conexões — JPA entity core com status, vendedor, comentários, histórico, tarefas.
+- `[[lead-service]]` — 12 conexões — Orquestrador de mutações, histórico imutável, follow-up, timeline.
+- `[[lead-api-controller]]` — 9 conexões — REST AJAX: PATCH status/vendor, POST comentário/tarefa, bulk-assign.
+- `[[lead-repo]]` — 8 conexões — JPQL com CAST nullable e regexp_replace para busca em múltiplos campos.
+- `[[usuario-entity]]` — 7 conexões — Identidade autenticada com perfil e preferências de notificação.
+
+### Comunidades
+| Hub | Nós | Papel |
+|-----|-----|-------|
+| `[[C0-camada-lead-e-dominio-hub]]` | 21 | Camada Lead e Domínio |
+| `[[C1-autenticacao-e-conta-hub]]` | 15 | Autenticação e Conta |
+| `[[C2-integracao-divia-hub]]` | 5 | Integração Divia |
+| `[[C3-controllers-e-mvc-hub]]` | 10 | Controllers e MVC |
+| `[[C4-frontend-js-css-templates-hub]]` | 13 | Frontend JS, CSS e Templates |
+| `[[C5-configuracao-e-build-hub]]` | 12 | Configuração, Build, Migrations |
+| `[[C6-testes-hub]]` | 1 | Testes |
+
+### Anomalias detectadas
+- `[[webhook-controller]]` — Sem CSRF, auth via header X-Webhook-Token (intencional).
+- `[[lead-api-controller]]` — Acessa `LeadRepository.countByLidoFalse()` direto sem service.
+- `[[security-config]]` — `DaoAuthenticationProvider` como local var (intencional, não @Bean).
+- `[[syntra-application-tests]]` — Nome legado `LeadflowApplicationTests` ainda no arquivo.
 
 ## Commands
 
@@ -126,4 +126,4 @@ Logout **must** use `POST`, not `GET`. Spring Security blocks `GET /logout` when
 ```
 
 ### Deployment
-Railway detects the project via `pom.xml` (Nixpacks). `railway.toml` sets the start command. Required environment variables: `DATABASE_URL` (Neon JDBC string), `WEBHOOK_SECRET`, `PORT` (set automatically by Railway).
+Fly.io app `syntra-crm` (region `gru`). Built from the multi-stage `Dockerfile` (Maven 3.9 + Temurin 17 → Temurin 17 JRE), config in `fly.toml` (`internal_port=8080`, health check on `/login`). Database is Neon Postgres; secrets are managed with `fly secrets set` on the app. Required secrets: `DATABASE_URL` (Neon JDBC string), `WEBHOOK_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`. Deploy with `flyctl deploy --remote-only --ha=false` from this directory. Production URL: https://syntra-crm.fly.dev/.

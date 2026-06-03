@@ -1,10 +1,12 @@
 package com.syntra.controller;
 
 import com.syntra.dto.AtualizarFollowUpDTO;
+import com.syntra.dto.CriarLeadManualDTO;
 import com.syntra.dto.CriarTarefaLeadDTO;
 import com.syntra.dto.DiviaSyncResultDTO;
 import com.syntra.dto.LeadFiltroDTO;
 import com.syntra.model.Lead;
+import com.syntra.model.enums.JornadaLead;
 import com.syntra.model.enums.StatusLead;
 import com.syntra.repository.UsuarioRepository;
 import com.syntra.service.DiviaLeadIntegrationService;
@@ -51,11 +53,37 @@ public class LeadController {
         model.addAttribute("paginaAtual", filtro.getPage());
         model.addAttribute("totalElementos", pagina.getTotalElements());
         model.addAttribute("filtro", filtro);
+        model.addAttribute("jornadaList", JornadaLead.values());
         model.addAttribute("statusList", StatusLead.values());
         model.addAttribute("vendedores", usuarioRepo.findByAtivoTrueOrderByNome());
         model.addAttribute("paginaAtiva", "leads");
 
         return "leads/lista";
+    }
+
+    @PostMapping("/manual")
+    public String criarManual(@Valid @ModelAttribute("novoLead") CriarLeadManualDTO dto,
+                              BindingResult bindingResult,
+                              Authentication authentication,
+                              RedirectAttributes redirectAttributes) {
+        if (bindingResult.hasErrors()) {
+            String erros = bindingResult.getFieldErrors().stream()
+                    .map(e -> e.getDefaultMessage())
+                    .reduce((a, b) -> a + " " + b)
+                    .orElse("Erro de validacao.");
+            redirectAttributes.addFlashAttribute("erro", erros);
+            return "redirect:/leads";
+        }
+
+        try {
+            Lead lead = leadService.criarManual(dto, authentication.getName());
+            redirectAttributes.addFlashAttribute("sucesso",
+                    "Lead \"" + lead.getNome() + "\" cadastrado com sucesso.");
+            return "redirect:/leads/" + lead.getId();
+        } catch (RuntimeException ex) {
+            redirectAttributes.addFlashAttribute("erro", ex.getMessage());
+            return "redirect:/leads";
+        }
     }
 
     @PostMapping("/sincronizar")
@@ -145,6 +173,7 @@ public class LeadController {
         model.addAttribute("comentarios", leadService.listarComentarios(id));
         model.addAttribute("tarefas", leadService.listarTarefas(id));
         model.addAttribute("timeline", leadService.listarTimeline(id));
+        model.addAttribute("jornadaList", JornadaLead.values());
         model.addAttribute("statusList", StatusLead.values());
         model.addAttribute("vendedores", usuarioRepo.findByAtivoTrueOrderByNome());
         model.addAttribute("usuarioAtual", usuarioService.buscarPorEmail(authentication.getName()));
@@ -160,6 +189,9 @@ public class LeadController {
         }
         if (filtro.getStatus() != null) {
             builder.queryParam("status", filtro.getStatus());
+        }
+        if (filtro.getJornada() != null) {
+            builder.queryParam("jornada", filtro.getJornada());
         }
         if (filtro.getVendedorId() != null && !filtro.getVendedorId().isBlank()) {
             builder.queryParam("vendedorId", filtro.getVendedorId());

@@ -41,7 +41,12 @@
                 <div class="detail-banner fade-in">
                     <div class="detail-banner-top">
                         <div>
-                            <h1 class="detail-nome" th:text="${lead.nome}">-</h1>
+                            <div class="lead-link-row">
+                                <h1 class="detail-nome" th:text="${lead.nome}">-</h1>
+                                <span class="origem-tag origem-tag-manual"
+                                      th:if="${lead.origemExterna == 'MANUAL'}"
+                                      title="Lead cadastrado manualmente">Manual</span>
+                            </div>
                             <div class="detail-meta">
                                 <span class="meta-chip">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -66,6 +71,14 @@
                                     </svg>
                                     <span th:text="${lead.campanha}">-</span>
                                 </span>
+                                <span class="meta-chip" th:if="${lead.jornada != null}">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                        <path d="M4 7h16"/>
+                                        <path d="M4 12h10"/>
+                                        <path d="M4 17h7"/>
+                                    </svg>
+                                    <span th:text="${lead.jornada.label}">-</span>
+                                </span>
                             </div>
                         </div>
                         <span th:class="'badge badge-lg badge-' + ${lead.status.name().toLowerCase().replace('_','-')}"
@@ -85,7 +98,11 @@
                         <div class="detail-field" th:if="${lead.telefone}">
                             <span class="field-label">Telefone</span>
                             <div class="field-value">
-                                <a th:href="'tel:' + ${lead.telefone}" th:text="${lead.telefone}" class="field-link">-</a>
+                                <a th:href="${lead.whatsappUrl}"
+                                   th:text="${lead.telefone}"
+                                   target="_blank"
+                                   rel="noopener"
+                                   class="field-link">-</a>
                                 <a th:if="${lead.whatsappContact}"
                                    th:href="${lead.whatsappUrl}"
                                    class="btn btn-sm btn-success" style="margin-left: 10px;" target="_blank">
@@ -121,6 +138,17 @@
 
                     <div class="form-row">
                         <div class="form-group">
+                            <label class="form-label">Jornada</label>
+                            <select id="jornadaSelect" class="form-input">
+                                <option value="">Nao definida</option>
+                                <option th:each="j : ${jornadaList}"
+                                        th:value="${j.name()}"
+                                        th:text="${j.label}"
+                                        th:selected="${lead.jornada == j}">
+                                </option>
+                            </select>
+                        </div>
+                        <div class="form-group">
                             <label class="form-label">Status</label>
                             <select id="statusSelect" class="form-input">
                                 <option th:each="s : ${statusList}"
@@ -130,6 +158,9 @@
                                 </option>
                             </select>
                         </div>
+                    </div>
+
+                    <div class="form-row">
                         <div class="form-group">
                             <label class="form-label">Vendedor Responsavel</label>
                             <select id="vendedorSelect" class="form-input">

@@ -7,7 +7,10 @@ import com.syntra.dto.LeadFiltroDTO;
 import com.syntra.dto.divia.DiviaLeadDTO;
 import com.syntra.dto.divia.DiviaLeadResponseDTO;
 import com.syntra.model.Lead;
+import com.syntra.model.Usuario;
+import com.syntra.model.enums.Perfil;
 import com.syntra.repository.LeadRepository;
+import com.syntra.repository.UsuarioRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,8 +34,10 @@ public class DiviaLeadIntegrationService {
 
     private static final Logger log = LoggerFactory.getLogger(DiviaLeadIntegrationService.class);
     private static final String ORIGEM_EXTERNA_DIVIA = "DIVIA";
+    private static final String LISANDRA_ID = "0cad46fb-5795-4683-9135-18b051e6b32b";
 
     private final LeadRepository leadRepository;
+    private final UsuarioRepository usuarioRepository;
     private final ObjectMapper objectMapper;
     private final RestClient restClient;
     private final String apiToken;
@@ -42,12 +47,14 @@ public class DiviaLeadIntegrationService {
     private final org.springframework.context.ApplicationContext appContext;
 
     public DiviaLeadIntegrationService(LeadRepository leadRepository,
+                                       UsuarioRepository usuarioRepository,
                                        ObjectMapper objectMapper,
                                        RestClient.Builder restClientBuilder,
                                        org.springframework.context.ApplicationContext appContext,
                                        @Value("${syntra.integrations.divia.base-url}") String baseUrl,
                                        @Value("${syntra.integrations.divia.token:}") String apiToken) {
         this.leadRepository = leadRepository;
+        this.usuarioRepository = usuarioRepository;
         this.objectMapper = objectMapper;
         this.appContext = appContext;
         this.restClient = restClientBuilder
@@ -170,6 +177,27 @@ public class DiviaLeadIntegrationService {
             lead.setOrigemExterna(ORIGEM_EXTERNA_DIVIA);
             lead.setLeadExternoId(dto.getId());
             lead.setLido(false);
+
+            // Antes de cair no round-robin, tenta identificar um cliente recorrente
+            // pelo e-mail/telefone para herdar vendedor + jornada + status do atendimento anterior.
+            Lead existente = buscarLeadExistenteMesmoCliente(limpar(dto.getEmail()), limpar(dto.getTelefone()));
+            if (existente != null) {
+                if (existente.getVendedor() != null) {
+                    lead.setVendedor(existente.getVendedor());
+                }
+                if (existente.getJornada() != null) {
+                    lead.setJornada(existente.getJornada());
+                }
+                if (existente.getStatus() != null) {
+                    lead.setStatus(existente.getStatus());
+                }
+            } else {
+                Usuario vendedorAuto = proximoVendedorRoundRobin();
+                if (vendedorAuto != null) {
+                    lead.setVendedor(vendedorAuto);
+                }
+            }
+            aplicarRegraJornadaLisandra(lead);
         }
 
         lead.setNome(preencherNome(dto));
@@ -188,6 +216,51 @@ public class DiviaLeadIntegrationService {
 
         leadRepository.save(lead);
         return novo;
+    }
+
+    /** Encontra o lead mais recente do mesmo cliente (email ou telefone). */
+    private Lead buscarLeadExistenteMesmoCliente(String email, String telefone) {
+        String emailNorm = (email == null || email.isBlank())
+                ? null : email.trim().toLowerCase();
+        String telDigits = (telefone == null) ? null : telefone.replaceAll("\\D", "");
+        if (telDigits != null && telDigits.length() < 8) {
+            telDigits = null;
+        }
+        if (emailNorm == null && telDigits == null) {
+            return null;
+        }
+        List<Lead> matches = leadRepository.findClienteExistente(emailNorm, telDigits);
+        return matches.isEmpty() ? null : matches.get(0);
+    }
+
+    /** Mesma logica de LeadService.proximoVendedorRoundRobin - duplicada
+     *  para evitar dependencia ciclica entre os dois services. */
+    private Usuario proximoVendedorRoundRobin() {
+        List<Usuario> vendedores = usuarioRepository.findByPerfilAndAtivoTrueOrderByNome(Perfil.VENDEDOR);
+        if (vendedores.isEmpty()) {
+            return null;
+        }
+        return leadRepository.findFirstByVendedorIsNotNullOrderByCriadoEmDesc()
+                .map(Lead::getVendedor)
+                .map(v -> {
+                    for (int i = 0; i < vendedores.size(); i++) {
+                        if (vendedores.get(i).getId().equals(v.getId())) {
+                            return vendedores.get((i + 1) % vendedores.size());
+                        }
+                    }
+                    return vendedores.get(0);
+                })
+                .orElse(vendedores.get(0));
+    }
+
+    private void aplicarRegraJornadaLisandra(Lead lead) {
+        if (isLisandra(lead.getVendedor())) {
+            lead.setJornada(com.syntra.model.enums.JornadaLead.TELEVENDAS);
+        }
+    }
+
+    private boolean isLisandra(Usuario vendedor) {
+        return vendedor != null && LISANDRA_ID.equals(vendedor.getId());
     }
 
     private String preencherNome(DiviaLeadDTO dto) {
