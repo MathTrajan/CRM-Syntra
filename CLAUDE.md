@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Contexto do Projeto
 
-> Gerado por /mapa em 2026-05-19. Vault: `G:\Meu Drive\Obsidian Vault\Graphify\syntra\` · 73 nós · 112 arestas · 7 comunidades
+> Gerado por /mapa em 2026-06-03. Vault: `G:\Meu Drive\Obsidian Vault\Graphify\syntra\` · 76 nós · 118 arestas · 7 comunidades
 
 **Para qualquer dúvida arquitetural, leia primeiro `_index.md` e o hub da comunidade relevante antes de explorar nodes/.**
 
@@ -12,11 +12,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 `G:\Meu Drive\Obsidian Vault\Graphify\syntra\_index.md`
 
 ### God nodes (núcleo — ausência quebra o sistema)
-- `[[lead-entity]]` — 11 conexões — JPA entity core com status, vendedor, comentários, histórico, tarefas.
-- `[[lead-service]]` — 12 conexões — Orquestrador de mutações, histórico imutável, follow-up, timeline.
-- `[[lead-api-controller]]` — 9 conexões — REST AJAX: PATCH status/vendor, POST comentário/tarefa, bulk-assign.
-- `[[lead-repo]]` — 8 conexões — JPQL com CAST nullable e regexp_replace para busca em múltiplos campos.
-- `[[usuario-entity]]` — 7 conexões — Identidade autenticada com perfil e preferências de notificação.
+- `[[lead-service]]` — 12 conexões — Orquestrador de mutações, histórico imutável, comentários, tarefas, round-robin, regra Lisandra.
+- `[[lead-entity]]` — 11 conexões — JPA entity core com status, jornada, vendedor, dadosExtras, comentários, histórico, tarefas.
+- `[[lead-api-controller]]` — 10 conexões — REST AJAX: PATCH status/jornada/vendedor, POST comentário, export XLSX (leadExportToMap), bulk-assign.
+- `[[lead-repo]]` — 8 conexões — JPQL extensa: busca multi-campo, regexp_replace telefone, métricas do dashboard.
+- `[[usuario-entity]]` — 7 conexões — Identidade autenticada com perfil (ADMIN/VENDEDOR) e preferências de UI.
 
 ### Comunidades
 | Hub | Nós | Papel |
@@ -34,6 +34,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `[[lead-api-controller]]` — Acessa `LeadRepository.countByLidoFalse()` direto sem service.
 - `[[security-config]]` — `DaoAuthenticationProvider` como local var (intencional, não @Bean).
 - `[[syntra-application-tests]]` — Nome legado `LeadflowApplicationTests` ainda no arquivo.
+- `[[leads-detalhe-template]]` — Card Follow-up/Tarefas removido da UI, mas endpoints `/follow-up` e `/tarefas` seguem ativos (UI dead code reativável).
 
 ## Commands
 

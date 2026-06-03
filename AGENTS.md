@@ -1,6 +1,6 @@
 # AGENTS.md — Instruções para agentes de IA (Codex, Gemini, Cursor, Copilot CLI, Aider)
 
-> Auto-gerado por /mapa em 2026-05-19. Leia este arquivo ANTES de qualquer ação no projeto.
+> Auto-gerado por /mapa em 2026-06-03. Leia este arquivo ANTES de qualquer ação no projeto.
 > Seções marcadas `<!-- manual:start:NAME -->` ... `<!-- manual:end:NAME -->` são preservadas em re-runs do /mapa.
 > O restante (god nodes, anomalias, comandos detectados, contagens) é regenerado a cada execução.
 
@@ -32,18 +32,18 @@ Se não tem acesso ao vault (G:\), leia ao menos `CLAUDE.md` — ele já tem o r
 
 ## 2. Como o Claude Code trabalha aqui (não duplique)
 
-- **`/mapa`** — gera o knowledge graph. Última execução: **2026-05-19** (73 nós, 112 arestas, 7 comunidades).
+- **`/mapa`** — gera o knowledge graph. Última execução: **2026-06-03** (76 nós, 118 arestas, 7 comunidades).
 - **`/sync-vault`** — sincroniza aprendizados com Obsidian.
 - Memória persistente do Claude em `C:\Users\User\.claude\projects\` — você (outro agente) não tem acesso; pergunte ao usuário antes de "refazer" algo que parece já decidido.
 
 ## 3. God Nodes (não toque sem motivo forte)
 
 <!-- auto:godnodes -->
-- `src/main/java/com/syntra/model/Lead.java` — JPA entity core: nome, email, telefone, status, vendedor, comentarios, historico, tarefas (11 conexões)
-- `src/main/java/com/syntra/service/LeadService.java` — Orquestrador de mutações em Lead, registra HistoricoLead, gerencia follow-up e timeline (12 conexões)
-- `src/main/java/com/syntra/repository/LeadRepository.java` — JpaRepository com JPQL nullable cast e busca regexp_replace em múltiplos campos (8 conexões)
-- `src/main/java/com/syntra/controller/api/LeadApiController.java` — REST AJAX: PATCH status/vendor, POST comentario/tarefa, bulk-assign, polling nao-lidos (9 conexões)
-- `src/main/java/com/syntra/model/Usuario.java` — JPA entity para autenticação: nome, email, senha (BCrypt), perfil, preferências de notificação (7 conexões)
+- `src/main/java/com/syntra/service/LeadService.java` — Orquestrador de mutações em Lead: histórico imutável, comentários, tarefas, round-robin, regra Lisandra (12 conexões)
+- `src/main/java/com/syntra/model/Lead.java` — JPA entity core: status, jornada, vendedor, dadosExtras, comentarios, historico, tarefas (11 conexões)
+- `src/main/java/com/syntra/controller/api/LeadApiController.java` — REST AJAX: PATCH status/jornada/vendedor, POST comentario, export XLSX (leadExportToMap), bulk-assign (10 conexões)
+- `src/main/java/com/syntra/repository/LeadRepository.java` — JpaRepository com JPQL extensa: busca multi-campo, regexp_replace telefone, métricas do dashboard (8 conexões)
+- `src/main/java/com/syntra/model/Usuario.java` — JPA entity de autenticação: nome, email, senha (BCrypt), perfil (ADMIN/VENDEDOR), preferências de UI (7 conexões)
 <!-- /auto:godnodes -->
 
 ## 4. Padrões obrigatórios
@@ -118,6 +118,7 @@ Em prod: `flyctl secrets set KEY=VALUE -a syntra-crm`. NUNCA commite valores rea
 - `src/main/java/com/syntra/controller/api/LeadApiController.java` — Acessa LeadRepository.countByLidoFalse() direto sem service (conhecido; refatorar com cuidado).
 - `src/main/java/com/syntra/config/SecurityConfig.java` — DaoAuthenticationProvider como local var (intencional, não @Bean — torná-lo @Bean quebra login silenciosamente).
 - `src/test/java/com/syntra/LeadflowApplicationTests.java` — Nome legado do projeto (LeadFlow → Syntra); renomear é OK.
+- `src/main/resources/templates/leads/detalhe.html` — Card "Follow-up Comercial + Tarefas" removido da UI, mas endpoints `POST /{id}/follow-up` e `POST /{id}/tarefas` seguem ativos no LeadController (UI dead code, reativável sem mudar backend).
 <!-- /auto:anomalies -->
 
 ## 8. Não faça (regras "do not")
