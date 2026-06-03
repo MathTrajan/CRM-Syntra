@@ -15,10 +15,12 @@ hs_err_pid*.log
 .classpath
 .settings/
 
-# === Claude / Graphify (local apenas) ===
+# === Claude / Graphify (local apenas — NUNCA versionar/subir) ===
 .claude/
 graphify-out/
 src/graphify-out/
+CLAUDE.md
+AGENTS.md
 
 # === Env / segredos ===
 .env
