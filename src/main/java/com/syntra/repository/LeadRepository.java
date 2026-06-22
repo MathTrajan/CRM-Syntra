@@ -11,10 +11,23 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 public interface LeadRepository extends JpaRepository<Lead, String>, JpaSpecificationExecutor<Lead> {
+
+    /**
+     * Busca leads de um vendedor específico cujo status esteja na coleção fornecida,
+     * ordenados por ultimaInteracaoEm crescente (mais parados primeiro).
+     * Usado pelo AlertaService para encontrar candidatos a alerta.
+     *
+     * @param vendedorId ID do usuario/vendedor
+     * @param statuses   conjunto de statuses candidatos
+     * @return lista de leads, ordenada por ultimaInteracaoEm ASC
+     */
+    List<Lead> findByVendedorIdAndStatusInOrderByUltimaInteracaoEmAsc(
+            String vendedorId, Collection<StatusLead> statuses);
 
     Optional<Lead> findByOrigemExternaAndLeadExternoId(String origemExterna, String leadExternoId);
 

@@ -21,6 +21,22 @@
     </div>
 
     <div class="topbar-right">
+        <!-- Sino de notificações — alertas do vendedor logado -->
+        <div class="notif-wrap">
+            <button class="icon-btn" id="notifBtn" type="button" onclick="toggleAlertas(event)" title="Notificações">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                </svg>
+                <span class="notif-badge" id="notifBadge" style="display:none">0</span>
+            </button>
+            <div class="notif-dropdown" id="alertasDropdown" style="display:none">
+                <div class="notif-header">Central de Atenção</div>
+                <div class="notif-list" id="alertasLista">
+                    <div class="notif-empty">Carregando…</div>
+                </div>
+            </div>
+        </div>
         <div class="topbar-pill">
             <span class="pill-dot"></span>
             Online

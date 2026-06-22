@@ -21,6 +21,7 @@ graphify-out/
 src/graphify-out/
 CLAUDE.md
 AGENTS.md
+HANDOFF.md
 
 # === Env / segredos ===
 .env

@@ -37,6 +37,9 @@
             <a th:href="@{/leads}" class="btn btn-primary">Ver Leads</a>
         </div>
 
+        <!-- Central de Atenção — fragment compartilhado com a página de leads -->
+        <div th:replace="~{fragments/alertas :: card(${alertas})}"></div>
+
         <!-- Filtro de data -->
         <div class="filter-bar">
             <form action="/dashboard" method="get"

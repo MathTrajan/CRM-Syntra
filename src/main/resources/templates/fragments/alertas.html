@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+    Fragment reutilizável: card "Central de Atenção".
+    Parâmetro: alertas — List<AlertaLead> do vendedor logado.
+    Uso: <div th:replace="~{fragments/alertas :: card(${alertas})}"></div>
+-->
+<div th:fragment="card(alertas)" class="card mt-6" th:if="${alertas != null}">
+    <h2 class="section-title"
+        th:text="'Central de Atenção · ' + ${#lists.size(alertas)} + ' lead(s) precisam de atenção'">
+        Central de Atenção
+    </h2>
+
+    <!-- Estado vazio -->
+    <div th:if="${#lists.isEmpty(alertas)}" class="empty-state-inline">
+        Nenhum lead precisa de atenção agora.
+    </div>
+
+    <!-- Lista de alertas -->
+    <div th:unless="${#lists.isEmpty(alertas)}"
+         style="display:flex; flex-direction:column; gap:10px;">
+        <div th:each="a : ${alertas}"
+             style="display:flex; align-items:flex-start; gap:12px;
+                    padding:12px 14px; border-radius:var(--r-sm);
+                    background:var(--bg-card-2); border:1px solid var(--border-md);">
+
+            <!-- Badge de severidade: URGENTE → badge-perdido (vermelho), ATENCAO → badge-em-atendimento (âmbar) -->
+            <span class="badge"
+                  th:classappend="${a.severidade.name() == 'URGENTE'} ? 'badge-perdido' : 'badge-em-atendimento'"
+                  style="flex-shrink:0; white-space:nowrap;"
+                  th:text="${a.severidade.label}">Alerta</span>
+
+            <!-- Corpo do alerta -->
+            <div style="flex:1; min-width:0;">
+                <div style="font-size:12px; color:var(--text-muted); margin-bottom:2px;"
+                     th:text="${a.statusLabel}">Status</div>
+                <div style="font-size:13px; color:var(--text-sec); line-height:1.4;"
+                     th:text="${a.mensagem}">Mensagem</div>
+            </div>
+
+            <!-- Link para abrir o lead -->
+            <a th:href="@{/leads/{id}(id=${a.leadId})}"
+               style="flex-shrink:0; font-size:12px; color:var(--gold);
+                      white-space:nowrap; padding:4px 8px;
+                      border:1px solid var(--gold-dim); border-radius:var(--r-sm);"
+               th:text="${a.leadNome}">Ver lead</a>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

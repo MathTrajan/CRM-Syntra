@@ -13,10 +13,14 @@ function closeSidebar() {
   if (o) o.classList.remove('visible');
 }
 
-// Polling: verifica leads não lidos a cada 30s
+// Polling: verifica leads não lidos e alertas a cada 30s
 function iniciarPolling() {
   atualizarNaoLidos();
-  setInterval(atualizarNaoLidos, 30000);
+  atualizarAlertas();
+  setInterval(() => {
+    atualizarNaoLidos();
+    atualizarAlertas();
+  }, 30000);
 }
 
 function atualizarNaoLidos() {
@@ -51,7 +55,66 @@ function definirInicialAvatar() {
   }
 }
 
+// ── Sino de notificações (alertas do vendedor logado) ──────────────────────
+
+// Abre/fecha o dropdown do sino
+function toggleAlertas(ev) {
+  if (ev) ev.stopPropagation();
+  const dd = document.getElementById('alertasDropdown');
+  if (!dd) return;
+  dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+}
+
+// Fecha o dropdown ao clicar fora do componente
+function fecharAlertasFora(ev) {
+  const wrap = document.querySelector('.notif-wrap');
+  const dd = document.getElementById('alertasDropdown');
+  if (dd && wrap && !wrap.contains(ev.target)) dd.style.display = 'none';
+}
+
+// Busca /api/alertas e atualiza badge + lista do dropdown
+function atualizarAlertas() {
+  fetch('/api/alertas')
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      if (!data) return;
+
+      // Atualiza o badge numérico sobre o sino
+      const badge = document.getElementById('notifBadge');
+      if (badge) {
+        if (data.total > 0) {
+          badge.textContent = data.total;
+          badge.style.display = 'inline-flex';
+        } else {
+          badge.style.display = 'none';
+        }
+      }
+
+      // Renderiza os itens no dropdown
+      const lista = document.getElementById('alertasLista');
+      if (lista) {
+        if (!data.alertas || data.alertas.length === 0) {
+          lista.innerHTML = '<div class="notif-empty">Nenhum lead precisa de atenção agora.</div>';
+        } else {
+          lista.innerHTML = data.alertas.map(a => {
+            const urg = a.severidade === 'URGENTE';
+            const cls    = urg ? 'badge-perdido' : 'badge-em-atendimento';
+            const rotulo = urg ? 'Urgente' : 'Atenção';
+            return '<a class="notif-item" href="/leads/' + a.leadId + '">'
+                 + '<span class="badge ' + cls + '">' + rotulo + '</span>'
+                 + '<span class="notif-msg">' + a.mensagem + '</span>'
+                 + '<span class="notif-lead">' + a.leadNome + '</span>'
+                 + '</a>';
+          }).join('');
+        }
+      }
+    })
+    .catch(() => {});
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   iniciarPolling();
   definirInicialAvatar();
+  // Fecha o dropdown do sino ao clicar fora dele
+  document.addEventListener('click', fecharAlertasFora);
 });

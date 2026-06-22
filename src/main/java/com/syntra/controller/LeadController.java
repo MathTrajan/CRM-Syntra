@@ -9,6 +9,7 @@ import com.syntra.model.Lead;
 import com.syntra.model.enums.JornadaLead;
 import com.syntra.model.enums.StatusLead;
 import com.syntra.repository.UsuarioRepository;
+import com.syntra.service.AlertaService;
 import com.syntra.service.DiviaLeadIntegrationService;
 import com.syntra.service.LeadService;
 import com.syntra.service.UsuarioService;
@@ -33,19 +34,22 @@ public class LeadController {
     private final DiviaLeadIntegrationService diviaLeadIntegrationService;
     private final UsuarioRepository usuarioRepo;
     private final UsuarioService usuarioService;
+    private final AlertaService alertaService;
 
     public LeadController(LeadService leadService,
                           DiviaLeadIntegrationService diviaLeadIntegrationService,
                           UsuarioRepository usuarioRepo,
-                          UsuarioService usuarioService) {
+                          UsuarioService usuarioService,
+                          AlertaService alertaService) {
         this.leadService = leadService;
         this.diviaLeadIntegrationService = diviaLeadIntegrationService;
         this.usuarioRepo = usuarioRepo;
         this.usuarioService = usuarioService;
+        this.alertaService = alertaService;
     }
 
     @GetMapping
-    public String lista(LeadFiltroDTO filtro, Model model) {
+    public String lista(LeadFiltroDTO filtro, Model model, Authentication authentication) {
         Page<Lead> pagina = leadService.listar(filtro);
 
         model.addAttribute("leads", pagina.getContent());
@@ -57,6 +61,14 @@ public class LeadController {
         model.addAttribute("statusList", StatusLead.values());
         model.addAttribute("vendedores", usuarioRepo.findByAtivoTrueOrderByNome());
         model.addAttribute("paginaAtiva", "leads");
+
+        // Alertas do vendedor logado para o card "Central de Atenção" na lista
+        var usuarioLogado = authentication != null
+                ? usuarioService.buscarPorEmail(authentication.getName())
+                : null;
+        model.addAttribute("alertas", usuarioLogado != null
+                ? alertaService.alertasDoVendedor(usuarioLogado.getId())
+                : java.util.List.of());
 
         return "leads/lista";
     }
