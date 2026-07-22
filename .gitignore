@@ -15,7 +15,7 @@ hs_err_pid*.log
 .classpath
 .settings/
 
-# === Claude / Graphify (local apenas — NUNCA versionar/subir) ===
+# === Ferramentas locais (Graphify etc — NUNCA versionar/subir) ===
 .claude/
 graphify-out/
 src/graphify-out/
